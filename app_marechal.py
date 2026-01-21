@@ -2,109 +2,105 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import io
-import os
 
-# --- CONFIGURAÇÃO VISUAL DA PÁGINA ---
-st.set_page_config(page_title="Frota - Login", page_icon="🚗", layout="centered")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Gestão de Frota", page_icon="🚗", layout="wide")
 
-# CSS para replicar exatamente o visual da sua imagem
+# --- ESTILIZAÇÃO CSS (REPLICANDO A BARRA ESCURA E O LOOK DA FOTO) ---
 st.markdown("""
     <style>
-    .main {
-        background-color: #e6e6e6;
-    }
-    .stApp {
-        background-color: #e6e6e6;
-    }
-    .login-box {
-        background-color: white;
-        padding: 40px;
-        border-radius: 10px;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
-        text-align: center;
-    }
-    .title-frota {
-        color: #d93043;
-        font-size: 40px;
-        font-weight: bold;
+    /* Estilo da Barra Superior */
+    .nav-bar {
+        background-color: #343a40;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        color: white;
+        font-family: sans-serif;
+        border-top: 3px solid #28a745; /* Linha verde no topo */
         margin-bottom: 20px;
     }
-    .subtitle-login {
-        color: #333;
-        font-size: 18px;
-        margin-bottom: 30px;
-    }
-    div.stButton > button {
-        background-color: #d93043;
-        color: white;
-        width: 100%;
-        border-radius: 5px;
-        height: 45px;
+    .nav-title {
         font-weight: bold;
+        margin-right: 30px;
+        font-size: 18px;
+    }
+    .nav-item {
+        margin-right: 20px;
+        color: #adb5bd;
+        cursor: pointer;
+        font-size: 15px;
+    }
+    /* Ajuste do fundo */
+    .stApp {
+        background-color: #f8f9fa;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BANCO DE DATOS (ZERA TUDO E RECOMEÇA) ---
-db_path = 'sistema_marechal_v2.db'
+# --- BANCO DE DADOS ---
+db_path = 'sistema_marechal_v3.db'
 conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
-# Criação das tabelas limpas
-c.execute('DROP TABLE IF EXISTS usuarios')
-c.execute('DROP TABLE IF EXISTS prefeituras')
-c.execute('CREATE TABLE usuarios (cpf TEXT PRIMARY KEY, senha TEXT, nivel TEXT, prefeitura TEXT)')
-c.execute('CREATE TABLE prefeituras (nome TEXT PRIMARY KEY)')
-
-# CADASTRO INICIAL DO MARECHAL (Conforme solicitado)
-c.execute("INSERT INTO usuarios VALUES ('05772587374', '1234', 'ADM', 'ADMINISTRAÇÃO CENTRAL')")
-c.execute("INSERT INTO prefeituras VALUES ('Prefeitura de Salitre')")
+c.execute('CREATE TABLE IF NOT EXISTS usuarios (cpf TEXT PRIMARY KEY, senha TEXT)')
+c.execute("INSERT OR IGNORE INTO usuarios VALUES ('05772587374', '1234')")
 conn.commit()
 
-# --- ESTADOS DO SISTEMA ---
+# --- ESTADO DO LOGIN ---
 if 'logado' not in st.session_state:
     st.session_state.logado = False
-if 'pagina' not in st.session_state:
-    st.session_state.pagina = "Login"
 
-# --- TELA DE LOGIN (DESIGN FIEL À IMAGEM) ---
+# --- TELA DE LOGIN ---
 if not st.session_state.logado:
-    # Centralização manual na tela
-    _, col_central, _ = st.columns([1, 2, 1])
-    
-    with col_central:
-        st.markdown('<div class="title-frota" style="text-align: center;">Frota</div>', unsafe_allow_html=True)
-        st.markdown('<div class="subtitle-login" style="text-align: center;">entre para iniciar a sessão</div>', unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 1, 1])
+    with col:
+        st.markdown("<h1 style='text-align: center; color: #d93043;'>Frota</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>entre para iniciar a sessão</p>", unsafe_allow_html=True)
         
-        cpf_input = st.text_input("", placeholder="CPF", label_visibility="collapsed")
-        senha_input = st.text_input("", placeholder="Senha", type="password", label_visibility="collapsed")
+        cpf = st.text_input("CPF")
+        senha = st.text_input("Senha", type="password")
         
-        # Alinhamento do botão à direita como na imagem
-        col_btn_1, col_btn_2 = st.columns([2, 1])
-        with col_btn_2:
-            if st.button("Entrar"):
-                c.execute("SELECT nivel, prefeitura FROM usuarios WHERE cpf=? AND senha=?", (cpf_input, senha_input))
-                user = c.fetchone()
-                if user:
-                    st.session_state.logado = True
-                    st.session_state.nivel = user[0]
-                    st.session_state.pref_atual = user[1]
-                    st.session_state.pagina = "Home"
-                    st.rerun()
-                else:
-                    st.error("CPF ou Senha incorretos.")
+        if st.button("Entrar"):
+            c.execute("SELECT * FROM usuarios WHERE cpf=? AND senha=?", (cpf, senha))
+            if c.fetchone():
+                st.session_state.logado = True
+                st.rerun()
+            else:
+                st.error("Credenciais inválidas")
 
-# --- INTERFACE PÓS-LOGIN (ESTRUTURA INICIAL) ---
+# --- TELA PRINCIPAL (IGUAL À FOTO) ---
 else:
-    st.sidebar.title("🛡️ Sistema Marechal")
-    st.sidebar.write(f"Nível: **{st.session_state.nivel}**")
-    
-    if st.sidebar.button("🚪 Sair"):
-        st.session_state.logado = False
-        st.rerun()
+    # Criando a Barra Superior via HTML/Markdown
+    st.markdown(f"""
+        <div class="nav-bar">
+            <div class="nav-title">PREFEITURA MUNICIPAL DE SALITRE</div>
+            <div class="nav-item">📁 Cadastros ▾</div>
+            <div class="nav-item">💼 Movimentos ▾</div>
+            <div class="nav-item">📊 Relatórios ▾</div>
+            <div class="nav-item">🛠️ Utilitários ▾</div>
+            <div style="margin-left: auto; padding-right: 20px;">👤</div>
+        </div>
+    """, unsafe_allow_html=True)
 
-    if st.session_state.pagina == "Home":
-        st.title("Bem-vindo ao Novo Comando")
-        st.info("O sistema foi zerado e está pronto para receber as novas funções.")
+    # Menu Lateral Streamlit para funcionalidades reais
+    with st.sidebar:
+        st.header("Comandos")
+        opcao = st.selectbox("Selecione uma Função:", 
+                            ["Dashboard", "Importar Planilha", "IA de Processamento"])
         
-        # Aqui vamos construir as opções que você quiser de novo.
+        if st.button("🚪 Sair"):
+            st.session_state.logado = False
+            st.rerun()
+
+    # Conteúdo da Página
+    if opcao == "Dashboard":
+        st.subheader("Painel de Controle")
+        st.write("Bem-vindo ao sistema de gestão, Marechal.")
+        
+    elif opcao == "Importar Planilha":
+        st.subheader("Módulo de Importação")
+        file = st.file_uploader("Suba sua planilha aqui", type=['xlsx', 'csv'])
+        if file:
+            df = pd.read_excel(file) if file.name.endswith('xlsx') else pd.read_csv(file)
+            st.dataframe(df)
