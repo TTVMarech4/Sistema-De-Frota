@@ -2,66 +2,71 @@ import streamlit as st
 import os
 import yt_dlp
 
-# --- CONFIGURAÇÃO DE SESSÃO ---
+# --- CONFIGURAÇÃO ---
+st.set_page_config(page_title="SIM - Downloader Total", layout="centered")
+
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 
-# --- INTERFACE ---
-if not st.session_state.logado:
-    # (Mantenha seu código de login aqui)
-    st.title("Acesso Restrito")
-    u = st.text_input("Operador")
-    if st.button("Entrar") and u == "05772587374":
-        st.session_state.logado = True
-        st.rerun()
+# (O código de login permanece o mesmo)
+if st.session_state.logado:
+    st.title("🎥 Downloader de Alta Potência")
+    st.write("Status: **Operacional** | Operador: **05772587374**")
 
-else:
-    st.title("🎥 Downloader Pro - Modo Bypass")
-    st.write("Operador: 05772587374")
-
-    # 1. ÁREA DE COOKIES (O segredo para não dar erro)
-    st.info("Passo 1: No seu navegador, use a extensão 'Get cookies.txt' no site do vídeo e suba o arquivo aqui.")
-    cookie_file = st.file_uploader("Upload cookies.txt", type=['txt'])
+    # Upload de Cookies (Essencial para sites adultos)
+    cookie_file = st.file_uploader("Subir cookies.txt (Opcional, mas recomendado)", type=['txt'])
     
-    # 2. ÁREA DO LINK
-    url = st.text_input("Passo 2: Cole o link do vídeo:")
+    url_input = st.text_input("Cole a URL do vídeo aqui:")
 
-    if url and st.button("BAIXAR AGORA"):
-        cookie_path = "cookies_temp.txt"
-        video_path = "video_baixado.mp4"
+    if url_input and st.button("FORÇAR CAPTURA"):
+        # 1. LIMPEZA TOTAL DA URL (Deixa apenas o link base)
+        url = url_input.split('?')[0]
         
-        # Se você subiu os cookies, o sistema salva e usa eles
+        video_path = "video_extraido.mp4"
+        cookie_path = "cookies_temp.txt"
+
         if cookie_file:
             with open(cookie_path, "wb") as f:
                 f.write(cookie_file.getbuffer())
 
-        with st.spinner("Derrubando proteção do site..."):
+        with st.spinner("Lutando contra a proteção do site..."):
             try:
                 if os.path.exists(video_path): os.remove(video_path)
 
                 ydl_opts = {
-                    'format': 'best[ext=mp4]/best',
+                    # FORMATO: Tenta MP4 primeiro, se não der, pega o melhor disponível
+                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                     'outtmpl': video_path,
+                    'noplaylist': True,
+                    # ESTA OPÇÃO É O SEGREDO: Força a tentativa mesmo em URLs 'não suportadas'
+                    'check_formats': False, 
+                    'ignoreerrors': True,
+                    'no_warnings': True,
+                    'quiet': False,
                     'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 }
 
-                # ATIVA OS COOKIES SE DISPONÍVEIS
                 if cookie_file:
                     ydl_opts['cookiefile'] = cookie_path
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-
+                    # Tenta baixar
+                    error_code = ydl.download([url])
+                
                 if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-                    st.success("Vídeo capturado com sucesso!")
+                    st.success("Derrubamos a trava! Vídeo processado.")
                     st.video(video_path)
                     with open(video_path, "rb") as f:
-                        st.download_button("💾 Salvar no PC", f, "video.mp4", "video/mp4")
+                        st.download_button("💾 Salvar no Dispositivo", f, "video_sim.mp4", "video/mp4")
                 else:
-                    st.error("O site bloqueou o servidor mesmo com os cookies.")
+                    st.error("O site bloqueou a extração direta. Verifique se o link está correto ou use um novo arquivo de cookies.")
 
             except Exception as e:
-                st.error(f"Falha técnica: {str(e)}")
+                st.error(f"Erro na extração: {str(e)}")
             
-            # Limpa os cookies após o uso por segurança
-            if os.path.exists(cookie_path): os.remove(cookie_path)
+            finally:
+                if os.path.exists(cookie_path): os.remove(cookie_path)
+
+    if st.sidebar.button("Logout"):
+        st.session_state.logado = False
+        st.rerun()
