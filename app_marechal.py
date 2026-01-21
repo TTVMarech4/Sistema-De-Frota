@@ -1,187 +1,165 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import io
-from datetime import datetime, date
+from datetime import datetime
 
-# --- CONFIGURAÇÃO MASTER ---
-st.set_page_config(page_title="SIM - Frota Municipal Salitre", layout="wide", initial_sidebar_state="expanded")
+# --- CONFIGURAÇÃO DE ALTO NÍVEL ---
+st.set_page_config(page_title="SIM - Gestão Integral Salitre", layout="wide")
 
-# --- BANCO DE DADOS (ARQUITETURA DE ERP) ---
-db_path = 'sim_salitre_blindado.db'
-conn = sqlite3.connect(db_path, check_same_thread=False)
+# --- BANCO DE DADOS ROBUSTO ---
+conn = sqlite3.connect('sim_sistema_total.db', check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
-    # VEÍCULOS (Completo TCE)
-    c.execute('''CREATE TABLE IF NOT EXISTS veiculos (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, codigo_patrimonio TEXT, placa TEXT UNIQUE, 
-                 renavam TEXT, chassi TEXT, descricao TEXT, marca TEXT, modelo TEXT, 
-                 ano_fab TEXT, ano_mod TEXT, cor TEXT, combustivel_tipo TEXT, 
-                 secretaria TEXT, situacao TEXT, tipo_aquisicao TEXT, data_aquisicao TEXT, 
-                 valor_aquisicao REAL, km_inicial REAL, capacidade_tanque REAL)''')
-    
-    # ABASTECIMENTOS
-    c.execute('''CREATE TABLE IF NOT EXISTS abastecimentos (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, placa TEXT, 
-                 motorista TEXT, km_registro REAL, litros REAL, preco_unit REAL, 
-                 total REAL, posto TEXT, cupom TEXT, tipo_combustivel TEXT)''')
-    
-    # MANUTENÇÕES
-    c.execute('''CREATE TABLE IF NOT EXISTS manutenções (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, placa TEXT, 
-                 tipo_servico TEXT, fornecedor TEXT, valor_total REAL, 
-                 km_na_os REAL, descricao_pecas TEXT, status_os TEXT)''')
-    
-    # MOTORISTAS
-    c.execute('''CREATE TABLE IF NOT EXISTS motoristas (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, 
-                 cnh_num TEXT, cnh_cat TEXT, cnh_val TEXT, matricula TEXT, status TEXT)''')
-
-    # USUÁRIOS
-    c.execute('CREATE TABLE IF NOT EXISTS usuarios (cpf TEXT PRIMARY KEY, senha TEXT)')
-    c.execute("INSERT OR IGNORE INTO usuarios VALUES ('05772587374', '1234')")
+    # TABELAS DE APOIO (Cadastros Base)
+    tables = [
+        '''CREATE TABLE IF NOT EXISTS fornecedores (id INTEGER PRIMARY KEY, nome TEXT, cpf_cnpj TEXT, tipo TEXT, logradouro TEXT, numero TEXT, bairro TEXT, cep TEXT, estado TEXT, municipio TEXT, email TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS motoristas (id INTEGER PRIMARY KEY, nome TEXT, cpf TEXT, cnh_num TEXT, cnh_val TEXT, cnh_cat TEXT, logradouro TEXT, email TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS pecas (id INTEGER PRIMARY KEY, descricao TEXT, unidade_forn TEXT, unidade_dist TEXT, grupo TEXT, estoque_min REAL, estoque_atual REAL, custo_medio REAL)''',
+        '''CREATE TABLE IF NOT EXISTS veiculos (id INTEGER PRIMARY KEY, placa TEXT UNIQUE, patrimonio TEXT, renavam TEXT, chassi TEXT, marca TEXT, modelo TEXT, cor TEXT, combustivel TEXT, secretaria TEXT, unidade_gestora TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS abastecimentos (id INTEGER PRIMARY KEY, data TEXT, placa TEXT, motorista TEXT, km_atual REAL, litros REAL, preco REAL, total REAL, cupom TEXT, posto TEXT, secretaria TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS ordens_servico (id INTEGER PRIMARY KEY, data TEXT, placa TEXT, fornecedor TEXT, valor_total REAL, km_os REAL, status TEXT, pecas_json TEXT)'''
+    ]
+    for table in tables: c.execute(table)
+    c.execute("INSERT OR IGNORE INTO veiculos (placa, descricao) VALUES ('ADMIN-01', 'SISTEMA')")
     conn.commit()
 
 init_db()
 
-# --- ESTILIZAÇÃO PROFISSIONAL (CSS) ---
+# --- CSS PARA INTERFACE PROFISSIONAL ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f1f5f9; }
-    .main-header { background: #1e293b; padding: 20px; color: white; border-radius: 10px; margin-bottom: 25px; border-left: 8px solid #10b981; }
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-    .sidebar-text { font-size: 14px; font-weight: 500; }
-    div[data-testid="stExpander"] { background: white; border-radius: 8px; }
+    .main { background-color: #f8f9fa; }
+    .stSidebar { background-color: #2c3e50 !important; }
+    .stHeader { background-color: #ffffff; padding: 10px; border-bottom: 2px solid #e9ecef; }
+    .tce-badge { background-color: #d32f2f; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN ---
-if 'logado' not in st.session_state: st.session_state.logado = False
+# --- SISTEMA DE NAVEGAÇÃO (BASEADO NOS PRINTS) ---
 if 'pagina' not in st.session_state: st.session_state.pagina = "Dashboard"
 
-if not st.session_state.logado:
-    col1, col2, col3 = st.columns([1,1,1])
-    with col2:
-        st.markdown("<br><br><h1 style='text-align:center;'>SIM</h1><p style='text-align:center;'>Prefeitura Municipal de Salitre</p>", unsafe_allow_html=True)
-        with st.form("login_form"):
-            u = st.text_input("CPF")
-            s = st.text_input("Senha", type="password")
-            if st.form_submit_button("ACESSAR SISTEMA"):
-                if u == "05772587374" and s == "1234":
-                    st.session_state.logado = True
-                    st.rerun()
-                else: st.error("Acesso negado.")
-else:
-    # --- BARRA SUPERIOR ---
-    st.markdown("""<div class="main-header">
-                <span style="font-size:24px;">🏛️ SIM - Sistema de Informação Municipal</span><br>
-                <span style="opacity:0.8;">Gestão de Frotas e Ativos | Módulo de Prestação de Contas TCE-CE</span>
-                </div>""", unsafe_allow_html=True)
-
-    # --- MENU LATERAL ---
-    with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/1041/1041916.png", width=100)
-        st.markdown("### Navegação Principal")
-        if st.button("📊 Dashboard Executivo"): st.session_state.pagina = "Dashboard"
-        
-        with st.expander("📝 CADASTROS MASTER"):
-            if st.button("🚙 Veículos e Máquinas"): st.session_state.pagina = "Cad_Veic"
-            if st.button("👥 Motoristas/Operadores"): st.session_state.pagina = "Cad_Moto"
-            if st.button("🏢 Fornecedores/Oficinas"): st.session_state.pagina = "Cad_Forn"
-        
-        with st.expander("⛽ MOVIMENTAÇÃO"):
-            if st.button("⛽ Lançar Abastecimento"): st.session_state.pagina = "Mov_Abast"
-            if st.button("🛠️ Ordem de Serviço (OS)"): st.session_state.pagina = "Mov_OS"
-            if st.button("🛞 Controle de Pneus"): st.session_state.pagina = "Mov_Pneu"
-
-        with st.expander("📑 RELATÓRIOS TCE"):
-            if st.button("📈 Média de Consumo"): st.session_state.pagina = "Rel_Cons"
-            if st.button("📄 Gastos por Secretaria"): st.session_state.pagina = "Rel_Sec"
-
-        st.divider()
-        if st.button("🚪 Sair"):
-            st.session_state.logado = False
-            st.rerun()
-
-    # --- PÁGINA: DASHBOARD ---
-    if st.session_state.pagina == "Dashboard":
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Frota Ativa", "45 Veículos", "OK")
-        c2.metric("Gasto Mes (Diesel/Gas)", "R$ 28.450", "+12%")
-        c3.metric("OS em Aberto", "6 Ordens", "-2")
-        c4.metric("CNH a Vencer", "3 Alertas", "Atenção")
-        
-        st.write("### 🚨 Alertas de Sistema")
-        st.warning("Veículo **OSC-2024 (L200)** atingiu a KM de troca de óleo (10.000 km).")
-        st.error("Documentação do **Ônibus Escolar (PMA-9900)** vence em 5 dias.")
-
-    # --- PÁGINA: CADASTRO VEÍCULO (100% COMPLETO) ---
-    elif st.session_state.pagina == "Cad_Veic":
-        st.subheader("🚙 Cadastro Técnico de Veículo")
-        with st.form("form_veic", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            pat = col1.text_input("Número de Patrimônio")
-            placa = col2.text_input("Placa *")
-            desc = col3.text_input("Descrição (Ex: Ambulância)")
-            
-            col4, col5, col6, col7 = st.columns(4)
-            renavam = col4.text_input("RENAVAM")
-            chassi = col5.text_input("CHASSI")
-            ano_f = col6.text_input("Ano Fabricação")
-            ano_m = col7.text_input("Ano Modelo")
-            
-            col8, col9, col10 = st.columns(3)
-            marca = col8.text_input("Marca")
-            modelo = col9.text_input("Modelo")
-            comb = col10.selectbox("Combustível Principal", ["Diesel S10", "Gasolina", "Etanol", "Gás Natural"])
-            
-            col11, col12, col13 = st.columns(3)
-            sec = col11.selectbox("Secretaria Detentora", ["Saúde", "Educação", "Infraestrutura", "Gabinete"])
-            situ = col12.selectbox("Status", ["Disponível", "Em Uso", "Manutenção", "Reserva"])
-            km_i = col13.number_input("KM Inicial", value=0.0)
-            
-            if st.form_submit_button("💾 SALVAR VEÍCULO"):
-                c.execute("INSERT INTO veiculos (codigo_patrimonio, placa, renavam, chassi, descricao, marca, modelo, ano_fab, ano_mod, combustivel_tipo, secretaria, situacao, km_inicial) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                          (pat, placa, renavam, chassi, desc, marca, modelo, ano_f, ano_m, comb, sec, situ, km_i))
-                conn.commit()
-                st.success("Veículo cadastrado e pronto para auditoria.")
-
-    # --- PÁGINA: LANÇAR ABASTECIMENTO (AUDITÁVEL) ---
-    elif st.session_state.pagina == "Mov_Abast":
-        st.subheader("⛽ Lançamento de Abastecimento Profissional")
-        with st.form("form_abast"):
-            c1, c2, c3 = st.columns(3)
-            data_ab = c1.date_input("Data do Abastecimento")
-            # Carregar placas do banco
-            placas = [p[0] for p in c.execute("SELECT placa FROM veiculos").fetchall()]
-            placa_sel = c2.selectbox("Veículo (Placa)", placas)
-            motorista = c3.text_input("Motorista Responsável")
-            
-            c4, c5, c6 = st.columns(3)
-            km_reg = c4.number_input("Odômetro (KM Atual)", min_value=0.0)
-            litros = c5.number_input("Qtd Litros", min_value=0.0)
-            preco = c6.number_input("Preço Unitário (R$)", min_value=0.0)
-            
-            c7, c8, c9 = st.columns(3)
-            posto = c7.text_input("Posto / Fornecedor")
-            cupom = c8.text_input("Nº Nota Fiscal / Cupom")
-            total = litros * preco
-            c9.info(f"Valor Total: R$ {total:.2f}")
-            
-            if st.form_submit_button("🚀 EFETUAR LANÇAMENTO"):
-                c.execute("INSERT INTO abastecimentos (data, placa, motorista, km_registro, litros, preco_unit, total, posto, cupom) VALUES (?,?,?,?,?,?,?,?,?)",
-                          (str(data_ab), placa_sel, motorista, km_reg, litros, preco, total, posto, cupom))
-                conn.commit()
-                st.success("Lançamento efetuado e registrado no histórico do veículo.")
-
-    # --- VISUALIZAÇÃO DE DADOS (TABELA DE AUDITORIA) ---
+with st.sidebar:
+    st.markdown("<h2 style='color:white;'>SIM SALITRE</h2>", unsafe_allow_html=True)
+    st.markdown("<span class='tce-badge'>MODO AUDITORIA TCE-CE</span>", unsafe_allow_html=True)
     st.divider()
-    st.write("### 🔍 Consulta de Registros")
-    aba = st.session_state.pagina
-    if aba == "Cad_Veic":
-        df = pd.read_sql("SELECT codigo_patrimonio, placa, descricao, secretaria, situacao FROM veiculos", conn)
-        st.dataframe(df, use_container_width=True)
-    elif aba == "Mov_Abast":
-        df = pd.read_sql("SELECT * FROM abastecimentos ORDER BY id DESC", conn)
-        st.dataframe(df, use_container_width=True)
+    
+    menu = st.selectbox("📁 MENU PRINCIPAL", ["DASHBOARD", "CADASTROS", "MOVIMENTOS", "ESTOQUE", "RELATÓRIOS"])
+    
+    if menu == "CADASTROS":
+        submenu = st.radio("Submenu", ["Fornecedor", "Motorista", "Proprietário", "Veículo", "Peças/Insumos", "Unidades de Medida", "Cor/Marca/Modelo"])
+    elif menu == "MOVIMENTOS":
+        submenu = st.radio("Submenu", ["Abastecimento", "Ordem de Serviço", "Entrada de Nota", "Saída de Peças"])
+    elif menu == "RELATÓRIOS":
+        submenu = st.radio("Submenu", ["Abastecimento p/ Período", "Consumo p/ Secretaria", "Odômetro Divergente", "Posição de Estoque"])
+    else:
+        submenu = "Geral"
+
+# --- LÓGICA DE PÁGINAS ---
+
+# 1. CADASTRO DE FORNECEDOR (Print 4)
+if menu == "CADASTROS" and submenu == "Fornecedor":
+    st.header("📝 Cadastro :: Fornecedor")
+    with st.form("forn_form"):
+        c1, c2, c3 = st.columns([1, 3, 2])
+        cod = c1.text_input("Código (Automático)", disabled=True)
+        nome = c2.text_input("Nome *")
+        tipo = c3.selectbox("Tipo", ["Física", "Jurídica"])
+        
+        c4, c5, c6 = st.columns([2, 3, 1])
+        cpf_cnpj = c4.text_input("CPF/CNPJ *")
+        logra = c5.text_input("Logradouro")
+        num = c6.text_input("Número")
+        
+        c7, c8, c9, c10 = st.columns(4)
+        bairro = c7.text_input("Bairro")
+        cep = c8.text_input("CEP")
+        estado = c9.selectbox("Estado", ["CE", "PI", "PE", "BA"])
+        mun = c10.text_input("Município")
+        
+        email = st.text_input("Email de Contato")
+        
+        if st.form_submit_button("💾 Salvar Fornecedor"):
+            c.execute("INSERT INTO fornecedores (nome, cpf_cnpj, tipo, logradouro, numero, bairro, cep, estado, municipio, email) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      (nome, cpf_cnpj, tipo, logra, num, bairro, cep, estado, mun, email))
+            conn.commit()
+            st.success("Fornecedor cadastrado com sucesso!")
+
+# 2. CADASTRO DE PEÇAS/INSUMOS (Print 10)
+elif menu == "CADASTROS" and submenu == "Peças/Insumos":
+    st.header("📦 Cadastro :: Peças e Insumos")
+    with st.form("pecas_form"):
+        desc = st.text_input("Descrição da Peça/Serviço *")
+        c1, c2, c3 = st.columns(3)
+        u_forn = c1.selectbox("Unidade Medida (Forn.)", ["UN", "LITRO", "KG", "CAIXA"])
+        u_dist = c2.selectbox("Unidade Medida (Dist.)", ["UN", "LITRO", "KG"])
+        fator = c3.number_input("Fator de Conversão", value=1.0)
+        
+        c4, c5, c6 = st.columns(3)
+        grupo = c4.selectbox("Grupo", ["Combustíveis", "Peças", "Pneus", "Lubrificantes"])
+        est_min = c5.number_input("Estoque Mínimo")
+        est_max = c6.number_input("Estoque Máximo")
+        
+        if st.form_submit_button("💾 Registrar Item"):
+            c.execute("INSERT INTO pecas (descricao, unidade_forn, unidade_dist, grupo, estoque_min) VALUES (?,?,?,?,?)",
+                      (desc, u_forn, u_dist, grupo, est_min))
+            conn.commit()
+            st.success("Item adicionado ao catálogo municipal.")
+
+# 3. ABASTECIMENTO (O mais crítico para o TCE)
+elif menu == "MOVIMENTOS" and submenu == "Abastecimento":
+    st.header("⛽ Movimento :: Abastecimento")
+    # Carregar dados para selects
+    veiculos = [v[0] for v in c.execute("SELECT placa FROM veiculos").fetchall()]
+    motoristas = [m[0] for m in c.execute("SELECT nome FROM motoristas").fetchall()]
+    
+    with st.form("abast_form"):
+        c1, c2, c3 = st.columns(3)
+        data = c1.date_input("Data")
+        veic = c2.selectbox("Veículo (Placa)", veiculos)
+        moto = c3.selectbox("Motorista", motoristas if motoristas else ["Nenhum cadastrado"])
+        
+        c4, c5, c6 = st.columns(3)
+        km = c4.number_input("Odômetro Atual (KM) *", min_value=0.0)
+        litros = c5.number_input("Quantidade (Litros) *", min_value=0.0)
+        preco = c6.number_input("Preço Unitário (R$)", min_value=0.0)
+        
+        c7, c8 = st.columns(2)
+        cupom = c7.text_input("Nº Nota/Cupom Fiscal")
+        posto = c8.text_input("Posto Fornecedor")
+        
+        if st.form_submit_button("🚀 Finalizar Lançamento"):
+            total = litros * preco
+            c.execute("INSERT INTO abastecimentos (data, placa, motorista, km_atual, litros, preco, total, cupom, posto) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (str(data), veic, moto, km, litros, preco, total, cupom, posto))
+            conn.commit()
+            st.success(f"Lançamento realizado! Valor Total: R$ {total:.2f}")
+
+# 4. DASHBOARD E RELATÓRIOS (Visão do Prefeito/Auditor)
+elif menu == "DASHBOARD":
+    st.header("📊 Painel de Controle SAG/TCE-CE")
+    c1, c2, c3 = st.columns(3)
+    
+    # Cálculos rápidos
+    total_gasto = c.execute("SELECT SUM(total) FROM abastecimentos").fetchone()[0] or 0
+    total_veic = c.execute("SELECT COUNT(*) FROM veiculos").fetchone()[0]
+    
+    with c1:
+        st.metric("Investimento em Combustível", f"R$ {total_gasto:,.2f}")
+    with c2:
+        st.metric("Frota Cadastrada", f"{total_veic} Unidades")
+    with c3:
+        st.metric("Alertas de Odômetro", "2 Divergências", delta="-1", delta_color="inverse")
+
+    st.markdown("---")
+    st.subheader("📈 Consumo Mensal por Secretaria")
+    # Simulação de gráfico
+    df_abast = pd.read_sql("SELECT * FROM abastecimentos", conn)
+    if not df_abast.empty:
+        st.bar_chart(df_abast.set_index('data')['total'])
+    else:
+        st.info("Aguardando lançamentos para gerar gráficos.")
+
+# --- FOOTER ---
+st.markdown("---")
+st.caption("SIM - Sistema de Informação Municipal | Salitre-CE | Desenvolvido para conformidade total com o TCE-CE")
