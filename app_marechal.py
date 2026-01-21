@@ -1,8 +1,8 @@
 import streamlit as st
 import os
-import time
+import re
 
-# --- TENTA IMPORTAR A BIBLIOTECA ---
+# --- TENTA IMPORTAR YT-DLP ---
 try:
     import yt_dlp
     YDL_AVAILABLE = True
@@ -10,7 +10,7 @@ except ImportError:
     YDL_AVAILABLE = False
 
 # --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="SIM - Downloader Pro", layout="centered")
+st.set_page_config(page_title="SIM - Ultra Downloader", layout="centered")
 
 if 'logado' not in st.session_state:
     st.session_state.logado = False
@@ -30,59 +30,56 @@ if not st.session_state.logado:
                 else:
                     st.error("Acesso negado")
 
-# --- INTERFACE DE DOWNLOAD ---
+# --- INTERFACE ---
 else:
-    st.title("🎥 Video Downloader & Player")
-    st.write(f"Operador: **05772587374**")
+    st.title("🎥 Ultra Downloader Pro")
+    st.info("Suporte para YouTube, Instagram, X, e outros sites de vídeo.")
     
     if not YDL_AVAILABLE:
-        st.error("⚠️ Biblioteca yt-dlp não instalada no requirements.txt")
+        st.error("Instale 'yt-dlp' no seu arquivo requirements.txt")
     else:
-        url = st.text_input("Cole o link (YouTube, Shorts, Instagram):", placeholder="https://...")
+        url_raw = st.text_input("Cole o link do vídeo aqui:", placeholder="https://...")
 
-        if url:
-            if st.button("BAIXAR E ASSISTIR"):
-                # Limpa arquivos antigos para não dar conflito
-                if os.path.exists("temp_video.mp4"):
-                    os.remove("temp_video.mp4")
+        if url_raw:
+            if st.button("PROCESSAR E BAIXAR"):
+                # 1. LIMPEZA DA URL (Remove lixo de rastreio)
+                url = url_raw.split('?')[0]
+                
+                if os.path.exists("video_result.mp4"):
+                    os.remove("video_result.mp4")
 
-                with st.spinner("Bypassing links... isso pode levar um momento."):
+                with st.spinner("Quebrando protocolos de segurança..."):
                     try:
-                        # OPÇÕES AVANÇADAS PARA EVITAR ARQUIVO VAZIO
                         ydl_opts = {
-                            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                            'outtmpl': 'temp_video.mp4',
+                            # Tenta o melhor formato MP4 compatível
+                            'format': 'best[ext=mp4]/best', 
+                            'outtmpl': 'video_result.mp4',
                             'noplaylist': True,
+                            # Opções para sites com bloqueio
+                            'check_formats': True,
+                            'ignoreerrors': False,
+                            'logtostderr': False,
                             'quiet': True,
                             'no_warnings': True,
-                            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
                         }
                         
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            # Tenta extrair info primeiro
-                            info = ydl.extract_info(url, download=True)
+                            ydl.download([url])
+                        
+                        if os.path.exists("video_result.mp4") and os.path.getsize("video_result.mp4") > 0:
+                            st.success("Sucesso! O vídeo foi capturado.")
+                            st.video("video_result.mp4")
                             
-                        # Verifica se o arquivo foi realmente criado e tem conteúdo
-                        if os.path.exists("temp_video.mp4") and os.path.getsize("temp_video.mp4") > 0:
-                            st.success(f"Vídeo: {info.get('title', 'Sucesso')}")
-                            
-                            # Player
-                            st.video("temp_video.mp4")
-                            
-                            # Botão de Download
-                            with open("temp_video.mp4", "rb") as f:
-                                st.download_button(
-                                    label="💾 Salvar no Computador",
-                                    data=f,
-                                    file_name="video_sim_baixado.mp4",
-                                    mime="video/mp4"
-                                )
+                            with open("video_result.mp4", "rb") as f:
+                                st.download_button("💾 Salvar no Computador", f, "video_sim.mp4", "video/mp4")
                         else:
-                            st.error("O servidor do site bloqueou o download direto. Tente outro link ou vídeo mais curto.")
-                            
+                            st.error("O site de origem bloqueou a extração ou a URL é inválida.")
+                        
                     except Exception as e:
-                        st.error(f"Erro técnico: {str(e)}")
+                        st.error("Erro: Este site específico possui uma proteção que impede o download direto pelo servidor.")
+                        st.debug(str(e))
 
-    if st.sidebar.button("Sair"):
+    if st.sidebar.button("Logout"):
         st.session_state.logado = False
         st.rerun()
