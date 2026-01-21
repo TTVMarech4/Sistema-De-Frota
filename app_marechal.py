@@ -1,83 +1,81 @@
 import streamlit as st
 import os
 import yt_dlp
-import random
+import re
 
-# --- CONFIGURAÇÃO DE AMBIENTE ---
-st.set_page_config(page_title="SIM AI-Downloader", layout="centered")
-
+# --- CONFIGURAÇÃO DE SEGURANÇA ---
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 
-# --- MOTOR DE IA (LÓGICA DE BYPASS DINÂMICO) ---
-def get_ai_headers():
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1'
-    ]
-    return random.choice(user_agents)
-
-# --- INTERFACE DE LOGIN (Simplificada) ---
+# --- TELA DE LOGIN ---
 if not st.session_state.logado:
-    st.title("Acesso Restrito")
-    u = st.text_input("CPF")
-    p = st.text_input("Senha", type="password")
-    if st.button("DESBLOQUEAR"):
+    st.title("🛡️ SIM - ACESSO MILITAR")
+    u = st.text_input("USUÁRIO")
+    p = st.text_input("SENHA", type="password")
+    if st.button("AUTENTICAR"):
         if u == "05772587374" and p == "1234":
             st.session_state.logado = True
             st.rerun()
-
-# --- INTERFACE AI-DOWNLOADER ---
 else:
-    st.title("🤖 AI Video Cracker")
-    st.write("Sistema de Invasão de Protocolo Ativo")
+    st.title("🤖 AI SESSION HIJACKER")
+    st.write("Status: **Ataque de Cookies Ativo**")
 
-    url_raw = st.text_input("Cole o link protegido aqui:")
+    # CAMPO PARA COLAR OS COOKIES DIRETAMENTE (MAIS RÁPIDO QUE ARQUIVO)
+    cookie_raw = st.text_area("Cole aqui o texto do seu COOKIE (Injeção Direta):", 
+                             placeholder="ex: user_id=123; sess_id=abc; ...", height=100)
+    
+    url = st.text_input("URL do Vídeo Protegido:")
 
-    if url_raw and st.button("QUEBRAR DEFESA E BAIXAR"):
-        # IA de Limpeza: Remove scripts de rastreio da URL
-        url = url_raw.split('?')[0].split('&')[0]
+    if st.button("QUEBRAR DEFESA E EXTRAIR"):
+        if not cookie_raw:
+            st.warning("⚠️ Sem os cookies, a barreira de IP dificilmente cairá.")
         
-        video_out = "capture_ai.mp4"
-        if os.path.exists(video_out): os.remove(video_out)
+        video_file = "payload_video.mp4"
+        if os.path.exists(video_file): os.remove(video_file)
 
-        with st.spinner("🤖 IA Analisando criptografia do site..."):
+        with st.spinner("🤖 IA simulando sua sessão no servidor..."):
             try:
-                # Configurações Dinâmicas da IA
+                # O TRUQUE DA IA: Converte texto de cookie em arquivo que o motor entende
+                cookie_path = "session_inject.txt"
+                if cookie_raw:
+                    # Formata o cookie para o padrão Netscape que o yt-dlp exige
+                    # Ou tenta passar via header direto (mais agressivo)
+                    with open(cookie_path, "w") as f:
+                        f.write(cookie_raw)
+
                 ydl_opts = {
                     'format': 'best[ext=mp4]/best',
-                    'outtmpl': video_out,
-                    'user_agent': get_ai_headers(),
-                    'referer': 'https://google.com/', # Simula que veio do Google
-                    'quiet': True,
-                    'no_warnings': True,
-                    'ignoreerrors': True,
-                    'nocheckcertificate': True, # Quebra travas de certificado SSL
-                    'add_header': [
-                        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                        'Accept-Language: pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
-                        'Upgrade-Insecure-Requests: 1'
-                    ],
+                    'outtmpl': video_file,
+                    'quiet': False,
+                    'no_warnings': False,
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'nocheckcertificate': True,
+                    # INJEÇÃO DE COOKIES VIA STRING (AI BYPASS)
                 }
 
+                if cookie_raw:
+                    # Tenta injetar os cookies via header customizado caso o arquivo falhe
+                    ydl_opts['http_headers'] = {
+                        'Cookie': cookie_raw,
+                        'Referer': url.split('com')[0] + 'com/',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    # A IA tenta extrair a URL real escondida nos scripts do site
                     ydl.download([url])
 
-                if os.path.exists(video_out) and os.path.getsize(video_out) > 0:
-                    st.success("✅ Defesa Quebrada! Arquivo reconstruído.")
-                    st.video(video_out)
-                    with open(video_out, "rb") as f:
-                        st.download_button("💾 Baixar Agora", f, "video_capturado.mp4", "video/mp4")
+                if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
+                    st.success("✅ SUCESSO! Barreira de IP ignorada via Cookie Injection.")
+                    st.video(video_file)
+                    with open(video_file, "rb") as f:
+                        st.download_button("💾 BAIXAR AGORA", f, "video_blindado.mp4", "video/mp4")
                 else:
-                    st.error("❌ A defesa do site é uma barreira física de IP. O servidor do Streamlit está na lista negra deles.")
-                    st.info("DICA MASTER: Se falhar, use o campo de COOKIES que criamos antes. É a única forma de passar quando a IA é bloqueada pelo IP.")
+                    st.error("❌ A barreira física de IP é absoluta. O site detectou que o Cookie veio de um IP diferente do seu.")
+                    st.info("💡 Solução Final: Você precisa baixar o vídeo em 'Localhost' (seu PC) usando este mesmo código.")
 
             except Exception as e:
-                st.error(f"Falha na IA: {str(e)}")
+                st.error(f"Erro no Sequestro de Sessão: {str(e)}")
 
-    if st.sidebar.button("Sair"):
+    if st.sidebar.button("LOGOUT"):
         st.session_state.logado = False
         st.rerun()
