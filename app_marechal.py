@@ -1,166 +1,140 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime
 
-# --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="Frota - Salitre", layout="wide")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Frota Salitre - Gestão Completa", layout="wide")
 
-# --- BANCO DE DADOS ---
-db_path = 'frota_salitre_v21.db'
+# --- BANCO DE DADOS (Estrutura de Tabelas Específicas) ---
+db_path = 'frota_salitre_v22.db'
 conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
-# Criar tabelas básicas e de sistema
-c.execute('CREATE TABLE IF NOT EXISTS usuarios (cpf TEXT PRIMARY KEY, senha TEXT)')
-c.execute("INSERT OR IGNORE INTO usuarios VALUES ('05772587374', '1234')")
+def inicializar_tabelas():
+    # VEÍCULO (Campo por campo da imagem)
+    c.execute('''CREATE TABLE IF NOT EXISTS veiculo (
+                 codigo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, placa TEXT, 
+                 renavam TEXT, chassi TEXT, ano_fab TEXT, ano_mod TEXT, 
+                 cor TEXT, marca TEXT, modelo TEXT, combustivel TEXT, situacao TEXT)''')
+    
+    # MOTORISTA (Completo)
+    c.execute('''CREATE TABLE IF NOT EXISTS motorista (
+                 codigo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT, 
+                 rg TEXT, cnh_numero TEXT, cnh_validade TEXT, cnh_categoria TEXT, 
+                 telefone TEXT, endereco TEXT)''')
 
-# Função para criar tabelas complexas automaticamente se não existirem
-def inicializar_banco():
-    # Tabelas com múltiplos campos baseadas nas suas fotos
-    c.execute('''CREATE TABLE IF NOT EXISTS fornecedor (codigo INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 nome TEXT, tipo TEXT, cpf_cnpj TEXT, logradouro TEXT, numero TEXT, bairro TEXT, cep TEXT, email TEXT)''')
+    # FORNECEDOR (Completo)
+    c.execute('''CREATE TABLE IF NOT EXISTS fornecedor (
+                 codigo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, tipo TEXT, 
+                 cpf_cnpj TEXT, insc_estadual TEXT, logradouro TEXT, numero TEXT, 
+                 bairro TEXT, cep TEXT, cidade TEXT, telefone TEXT)''')
+
+    # MARCA / MODELO / COR / COMBUSTÍVEL (Campos: Código, Nome, Sigla)
+    tabelas_simples = ['marca', 'modelo', 'cor', 'combustivel', 'grupo', 'subgrupo', 'unidade_medida']
+    for t in tabelas_simples:
+        c.execute(f'CREATE TABLE IF NOT EXISTS {t} (codigo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, sigla TEXT)')
     
-    c.execute('''CREATE TABLE IF NOT EXISTS motorista (codigo INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 nome TEXT, cpf TEXT, logradouro TEXT, cnh_numero TEXT, cnh_validade TEXT, cnh_categoria TEXT, email TEXT)''')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS pecas_insumos (codigo INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 descricao TEXT, unidade TEXT, grupo TEXT, estoque_min REAL, estoque_atual REAL, valor_custo REAL)''')
-    
-    # Tabelas simples (apenas código e nome)
-    simples = ['cor', 'marca', 'modelo', 'grupo', 'subgrupo', 'combustivel', 'veiculo', 'unidade_medida']
-    for t in simples:
-        c.execute(f'CREATE TABLE IF NOT EXISTS {t} (codigo INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT)')
     conn.commit()
 
-inicializar_banco()
+inicializar_tabelas()
 
-# --- ESTADOS ---
+# --- LOGIN PADRÃO ---
 if 'logado' not in st.session_state: st.session_state.logado = False
-if 'tela_atual' not in st.session_state: st.session_state.tela_atual = "Home"
+if 'tela' not in st.session_state: st.session_state.tela = "Home"
 
-# --- INTERFACE DE LOGIN ---
 if not st.session_state.logado:
-    st.markdown("<h1 style='text-align:center;'>Frota</h1>", unsafe_allow_html=True)
+    st.title("Frota")
     with st.container():
-        _, col_login, _ = st.columns([1,1,1])
-        with col_login:
-            cpf = st.text_input("CPF")
-            senha = st.text_input("Senha", type="password")
-            if st.button("Entrar"):
-                c.execute("SELECT * FROM usuarios WHERE cpf=? AND senha=?", (cpf, senha))
-                if c.fetchone():
-                    st.session_state.logado = True
-                    st.rerun()
-                else: st.error("Erro no login")
+        u = st.text_input("CPF (05772587374)")
+        s = st.text_input("Senha", type="password")
+        if st.button("Entrar"):
+            if u == '05772587374' and s == '1234':
+                st.session_state.logado = True
+                st.rerun()
 
-# --- SISTEMA APÓS LOGIN ---
+# --- SISTEMA ---
 else:
-    # Cabeçalho
-    st.markdown("""<div style='background-color:#343a40; padding:10px; color:white; border-top:5px solid #28a745;'>
-                PREFEITURA MUNICIPAL DE SALITRE</div>""", unsafe_allow_html=True)
+    st.markdown("<div style='background-color:#343a40; padding:10px; color:white;'>PREFEITURA MUNICIPAL DE SALITRE</div>", unsafe_allow_html=True)
 
-    # MENU LATERAL (Exatamente como na sua imagem)
     with st.sidebar:
-        st.title("Menu")
-        with st.expander("📂 CADASTROS", expanded=True):
-            cad_list = ["Fornecedor", "Motorista", "Proprietário", "---", 
-                        "Grupo", "Subgrupo", "Unidade de Medida", "Peças/Insumos", "---",
-                        "Cor", "Marca", "Modelo", "Combustível", "Veículo"]
-            for item in cad_list:
-                if item == "---": st.divider()
-                elif st.button(item, key=item): 
-                    st.session_state.tela_atual = item
-                    st.rerun()
+        st.title("Cadastros")
+        with st.expander("📂 FORMULÁRIOS", expanded=True):
+            btns = ["Veículo", "Motorista", "Fornecedor", "---", "Marca", "Modelo", "Cor", "Combustível"]
+            for b in btns:
+                if b == "---": st.divider()
+                elif st.button(b): st.session_state.tela = b; st.rerun()
 
-    # --- LÓGICA DE TELAS ESPECÍFICAS ---
-    t = st.session_state.tela_atual
-    
-    if t == "Home":
-        st.subheader("Bem-vindo ao Sistema de Gestão de Frota")
-        st.write("Selecione um item no menu para cadastrar.")
+    t = st.session_state.tela
 
-    # 1. TELA DE FORNECEDOR (Baseada na Foto)
-    elif t == "Fornecedor":
-        st.header("Cadastro :: Fornecedor")
-        with st.form("form_forn"):
-            col1, col2, col3 = st.columns([1, 3, 2])
-            col1.text_input("Código", disabled=True, placeholder="Automático")
-            nome = col2.text_input("Nome *")
-            cpf_cnpj = col3.text_input("CPF / CNPJ *")
+    # --- TELA VEÍCULO (COMPLETA) ---
+    if t == "Veículo":
+        st.header("Cadastro de Veículo")
+        with st.form("veic"):
+            c1, c2, c3 = st.columns([1, 3, 2])
+            cod = c1.text_input("Código", disabled=True)
+            nome = c2.text_input("Descrição/Nome do Veículo *")
+            placa = c3.text_input("Placa *")
             
-            col4, col5 = st.columns([4, 1])
-            logra = col4.text_input("Logradouro")
-            num = col5.text_input("Número")
+            c4, c5, c6 = st.columns(3)
+            renavam = c4.text_input("Renavam")
+            chassi = c5.text_input("Chassi")
+            situacao = c6.selectbox("Situação", ["Ativo", "Inativo", "Manutenção"])
             
-            col6, col7, col8 = st.columns(3)
-            bairro = col6.text_input("Bairro")
-            cep = col7.text_input("CEP")
-            email = col8.text_input("Email")
-            
-            if st.form_submit_button("💾 Salvar"):
-                c.execute("INSERT INTO fornecedor (nome, cpf_cnpj, logradouro, numero, bairro, cep, email) VALUES (?,?,?,?,?,?,?)",
-                          (nome, cpf_cnpj, logra, num, bairro, cep, email))
+            c7, c8, c9, c10 = st.columns(4)
+            ano_f = c7.text_input("Ano Fab.")
+            ano_m = c8.text_input("Ano Mod.")
+            marca = c9.text_input("Marca")
+            modelo = c10.text_input("Modelo")
+
+            if st.form_submit_button("Salvar Veículo"):
+                c.execute("INSERT INTO veiculo (nome, placa, renavam, chassi, ano_fab, ano_mod, situacao) VALUES (?,?,?,?,?,?,?)",
+                          (nome, placa, renavam, chassi, ano_f, ano_m, situacao))
                 conn.commit()
-                st.success("Fornecedor Salvo!")
+                st.success("Veículo Cadastrado!")
 
-    # 2. TELA DE MOTORISTA (Baseada na Foto)
+    # --- TELA MOTORISTA (COMPLETA) ---
     elif t == "Motorista":
-        st.header("Cadastro :: Motorista")
-        with st.form("form_moto"):
-            col1, col2, col3 = st.columns([1, 3, 2])
-            col1.text_input("Código", disabled=True)
-            nome = col2.text_input("Nome *")
-            cpf = col3.text_input("CPF *")
+        st.header("Cadastro de Motorista")
+        with st.form("moto"):
+            c1, c2, c3 = st.columns([1, 3, 2])
+            c1.text_input("Código", disabled=True)
+            nome = c2.text_input("Nome Completo *")
+            cpf = c3.text_input("CPF *")
             
-            st.write("--- Habilitação ---")
-            c1, c2, c3 = st.columns(3)
-            num_cnh = c1.text_input("Número CNH")
-            val_cnh = c2.date_input("Validade")
-            cat_cnh = c3.selectbox("Categoria", ["A", "B", "C", "D", "E", "AB"])
+            c4, c5, c6 = st.columns(3)
+            rg = c4.text_input("RG")
+            cnh = c5.text_input("Nº CNH")
+            cat = c6.text_input("Categoria (A, B, D...)")
             
-            if st.form_submit_button("💾 Salvar"):
-                c.execute("INSERT INTO motorista (nome, cpf, cnh_numero, cnh_validade, cnh_categoria) VALUES (?,?,?,?,?)",
-                          (nome, cpf, num_cnh, str(val_cnh), cat_cnh))
+            val = st.date_input("Validade CNH")
+            end = st.text_input("Endereço Completo")
+            
+            if st.form_submit_button("Salvar Motorista"):
+                c.execute("INSERT INTO motorista (nome, cpf, rg, cnh_numero, cnh_validade, cnh_categoria, endereco) VALUES (?,?,?,?,?,?,?)",
+                          (nome, cpf, rg, cnh, str(val), cat, end))
                 conn.commit()
                 st.success("Motorista Salvo!")
 
-    # 3. TELA DE PEÇAS/INSUMOS (Baseada na Foto)
-    elif t == "Peças/Insumos":
-        st.header("Cadastro :: Peças/Insumos")
-        with st.form("form_pecas"):
-            desc = st.text_input("Descrição *")
-            c1, c2, c3 = st.columns(3)
-            und = c1.selectbox("Unidade", ["Litro", "Unidade", "Kg", "Peça"])
-            grp = c2.text_input("Grupo")
-            est_min = c3.number_input("Estoque Mínimo", value=0.0)
+    # --- TELAS DE MARCA / COR / COMBUSTÍVEL (NOME E SIGLA) ---
+    elif t in ["Marca", "Cor", "Combustível", "Modelo"]:
+        st.header(f"Cadastro de {t}")
+        with st.form("simples"):
+            c1, c2, c3 = st.columns([1, 4, 1])
+            c1.text_input("Código", disabled=True)
+            nome_s = c2.text_input(f"Nome da {t} *")
+            sigla_s = c3.text_input("Sigla")
             
-            if st.form_submit_button("💾 Salvar"):
-                c.execute("INSERT INTO pecas_insumos (descricao, unidade, grupo, estoque_min) VALUES (?,?,?,?)",
-                          (desc, und, grp, est_min))
+            if st.form_submit_button(f"Salvar {t}"):
+                tab = t.lower()
+                c.execute(f"INSERT INTO {tab} (nome, sigla) VALUES (?,?)", (nome_s, sigla_s))
                 conn.commit()
-                st.success("Item Salvo!")
+                st.success(f"{t} Cadastrada!")
 
-    # 4. TELAS SIMPLES (Cor, Marca, Modelo, etc)
-    else:
-        st.header(f"Cadastro :: {t}")
-        with st.form(f"form_{t}"):
-            col_id, col_nome = st.columns([1, 5])
-            col_id.text_input("Código", disabled=True, placeholder="Auto")
-            nome_simples = col_nome.text_input(f"Nome da {t} *")
-            
-            if st.form_submit_button("💾 Salvar"):
-                tab_name = t.lower().replace(" ", "_")
-                c.execute(f"INSERT INTO {tab_name} (nome) VALUES (?)", (nome_simples,))
-                conn.commit()
-                st.success(f"{t} salva com sucesso!")
-
-    # MOSTRAR TABELA DE BUSCA NO FINAL DE CADA TELA
+    # --- BUSCA E VISUALIZAÇÃO (Sempre no final) ---
     if t != "Home":
         st.divider()
-        st.subheader(f"Lista de {t}s (Pesquisa por Código)")
-        tab_search = t.lower().replace(" ", "_")
+        st.subheader(f"Pesquisa de {t}")
         try:
-            df = pd.read_sql(f"SELECT * FROM {tab_search}", conn)
+            df = pd.read_sql(f"SELECT * FROM {t.lower()}", conn)
             st.dataframe(df, use_container_width=True)
-        except: st.write("Nenhum dado encontrado.")
+        except: st.write("Aguardando registros...")
