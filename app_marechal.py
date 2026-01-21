@@ -1,127 +1,126 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime
 
-# --- CONFIGURAÇÃO DE ENGENHARIA ---
-st.set_page_config(page_title="SIM - Salitre/CE", layout="wide", initial_sidebar_state="expanded")
+# --- CONFIGURAÇÃO DE ALTO NÍVEL (INTERFACE LS STYLE) ---
+st.set_page_config(page_title="SIM - LS Sistemas Mirror", layout="wide", initial_sidebar_state="expanded")
 
-# --- MOTOR DE BANCO DE DADOS RELACIONAL ---
-class SIM_Engine:
+# --- BANCO DE DADOS RELACIONAL ROBUSTO ---
+class SIM_LS:
     def __init__(self):
-        self.conn = sqlite3.connect('sim_salitre_v11.db', check_same_thread=False)
+        self.conn = sqlite3.connect('sim_ls_salitre.db', check_same_thread=False)
         self.cursor = self.conn.cursor()
-        self.setup_db()
+        self.init_db()
 
-    def setup_db(self):
-        # 1. Módulo de Contratos e Licitações
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS contratos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, numero_contrato TEXT UNIQUE, empresa_id INTEGER,
-            processo_licitatorio TEXT, objeto TEXT, data_inicio TEXT, data_fim TEXT,
-            valor_mensal REAL, limite_km_mes REAL, status_contrato TEXT)''')
+    def init_db(self):
+        # CADASTROS ESTRUTURAIS (O que o sistema LS exige)
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS unidades_gestoras (id INTEGER PRIMARY KEY, nome TEXT, cnpj TEXT, sigla TEXT)')
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS secretarias (id INTEGER PRIMARY KEY, nome TEXT, unidade_gestora_id INTEGER)')
+        self.cursor.execute('CREATE TABLE IF NOT EXISTS naturezas_operacao (id INTEGER PRIMARY KEY, codigo TEXT, descricao TEXT, tipo TEXT)')
+        
+        # FORNECEDORES (Completo conforme o link)
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS fornecedores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_pessoa TEXT, cpf_cnpj TEXT UNIQUE, 
+            razao_social TEXT, nome_fantasia TEXT, insc_estadual TEXT, insc_municipal TEXT,
+            cep TEXT, logradouro TEXT, numero TEXT, bairro TEXT, cidade TEXT, uf TEXT,
+            telefone TEXT, email TEXT, banco TEXT, agencia TEXT, conta TEXT)''')
 
-        # 2. Módulo de Veículos (Campos de Auditoria Total)
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS frota (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, patrimonio TEXT, placa TEXT UNIQUE, 
-            tipo_vinculo TEXT, contrato_id INTEGER, renavam TEXT, chassi TEXT, 
-            marca TEXT, modelo TEXT, ano_fab TEXT, ano_mod TEXT, combustivel TEXT, 
-            cap_tanque REAL, secretaria TEXT, status TEXT, venc_ipva TEXT, venc_seguro TEXT)''')
+        # VEÍCULOS (Ficha Técnica LS)
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS veiculos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, placa TEXT UNIQUE, patrimonio TEXT, 
+            renavam TEXT, chassi TEXT, marca TEXT, modelo TEXT, cor TEXT, ano_fab TEXT, 
+            ano_mod TEXT, combustivel TEXT, cap_tanque REAL, odometro_inicial REAL, 
+            secretaria_id INTEGER, status TEXT, tipo_vinculo TEXT, num_contrato TEXT)''')
 
-        # 3. Módulo de Pneus (Essencial para TCE)
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS pneus (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, num_fogo TEXT UNIQUE, veiculo_id TEXT, 
-            posicao TEXT, marca TEXT, modelo TEXT, data_instalacao TEXT, km_instalacao REAL)''')
+        # ESTOQUE / PEÇAS (Com Fator de Conversão)
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS produtos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, unidade_entrada TEXT, 
+            unidade_saida TEXT, fator_conversao REAL, estoque_min REAL, estoque_atual REAL, grupo TEXT)''')
 
-        # 4. Módulo de Suprimentos e Almoxarifado
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS estoque (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, cod_barras TEXT, descricao TEXT, 
-            grupo TEXT, unidade TEXT, estoque_min REAL, estoque_atual REAL, custo_medio REAL)''')
-
-        # 5. Módulo de Movimentação (Abastecimento e KM)
+        # MOVIMENTAÇÃO (Auditável)
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS abastecimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, veiculo_id TEXT, motorista_id TEXT, 
-            km_ant REAL, km_atu REAL, litros REAL, valor_unit REAL, total REAL, 
-            cupom TEXT, posto TEXT, secretaria_custo TEXT)''')
-
-        # 6. Módulo de Pessoal e Condutores
-        self.cursor.execute('''CREATE TABLE IF NOT EXISTS motoristas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, cpf TEXT UNIQUE, 
-            cnh TEXT, categoria TEXT, validade_cnh TEXT, secretaria TEXT)''')
+            km_ant REAL, km_atu REAL, litros REAL, valor_unit REAL, total REAL, cupom TEXT, posto_id INTEGER)''')
 
         self.conn.commit()
 
-db = SIM_Engine()
+db = SIM_LS()
 
-# --- INTERFACE "GOV-TECH" (CSS) ---
+# --- CSS: ESTILO SISTEMA DE PREFEITURA ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f1f5f9; }
-    [data-testid="stSidebar"] { background-color: #0f172a !important; }
-    .header-panel { background: white; padding: 25px; border-radius: 8px; border-left: 10px solid #2563eb; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    .stButton>button { background-color: #2563eb !important; color: white; border-radius: 6px; font-weight: bold; width: 100%; height: 3em; }
-    .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
-    .metric-card { background: white; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0; }
+    .stApp { background-color: #f4f6f9; }
+    [data-testid="stSidebar"] { background-color: #2c3e50 !important; }
+    .main-header { background: white; padding: 15px; border-bottom: 2px solid #dee2e6; margin-bottom: 20px; border-left: 5px solid #007bff; }
+    .section-title { color: #495057; font-weight: bold; border-bottom: 1px solid #ced4da; margin-bottom: 15px; padding-bottom: 5px; }
+    .stButton>button { background-color: #007bff; color: white; border-radius: 4px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEMA DE NAVEGAÇÃO ---
+# --- NAVEGAÇÃO LS STYLE ---
 with st.sidebar:
-    st.markdown("<h1 style='color:white; text-align:center;'>🏛️ SIM SALITRE</h1>", unsafe_allow_html=True)
+    st.image("https://via.placeholder.com/150x50?text=SIM+SALITRE", use_container_width=True)
+    st.markdown("<p style='text-align:center; color:white;'>Usuário: 05772587374</p>", unsafe_allow_html=True)
     st.divider()
-    modulo = st.selectbox("MÓDULOS DE GESTÃO", [
-        "📊 Dashboard Geral", "📝 Contratos e Licitação", "🚗 Gestão de Frota", 
-        "🛞 Controle de Pneus", "📦 Almoxarifado", "⛽ Abastecimento", "👤 Condutores"
-    ])
-
-# --- FUNÇÕES DE INTERFACE ---
-
-if modulo == "Dashboard Geral":
-    st.markdown("<div class='header-panel'><h2>📊 Painel de Controle e Auditoria</h2><p>Visão Consolidada de Ativos e Recursos</p></div>", unsafe_allow_html=True)
     
-    # KPIs Reais
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Frota Ativa", len(db.cursor.execute("SELECT id FROM frota").fetchall()))
-    c2.metric("Contratos Vigentes", len(db.cursor.execute("SELECT id FROM contratos").fetchall()))
-    c3.metric("Gasto Combustível (Mês)", "R$ 0,00")
-    c4.metric("Alertas IPVA/Seguro", "0")
+    menu = st.selectbox("PRINCIPAL", ["Dashboard", "Cadastros", "Movimentos", "Relatórios"])
+    
+    if menu == "Cadastros":
+        sub = st.radio("Selecione:", ["Unidade Gestora", "Fornecedor", "Motorista", "Veículo", "Produto/Peça", "Natureza de Operação"])
+    elif menu == "Movimentos":
+        sub = st.radio("Selecione:", ["Entrada de Nota", "Abastecimento", "Ordem de Serviço", "Saída de Estoque"])
+    else:
+        sub = "Geral"
 
-    st.divider()
-    st.subheader("📋 Últimos Lançamentos Auditados")
-    df_abas = pd.read_sql("SELECT data, veiculo_id, km_atu, litros, total FROM abastecimentos ORDER BY id DESC LIMIT 5", db.conn)
-    st.dataframe(df_abas, use_container_width=True)
-
-elif modulo == "📝 Contratos e Licitação":
-    st.markdown("<div class='header-panel'><h2>📝 Gestão de Contratos de Terceirização</h2></div>", unsafe_allow_html=True)
-    with st.form("f_contrato"):
-        c1, c2, c3 = st.columns(3)
-        num = c1.text_input("Nº do Contrato (Ex: 2024.01.20-01) *")
-        proc = c2.text_input("Processo Licitatório (Pregão/Dispensa)")
-        status = c3.selectbox("Status", ["Vigente", "Encerrado", "Aditivo em Análise"])
-        
-        objeto = st.text_area("Objeto Detalhado do Contrato")
+# --- TELA: FORNECEDOR (IGUAL AO LINK LS) ---
+if menu == "Cadastros" and sub == "Fornecedor":
+    st.markdown("<div class='main-header'><h3>📝 Cadastro de Fornecedor</h3></div>", unsafe_allow_html=True)
+    
+    with st.form("f_forn"):
+        st.markdown("<p class='section-title'>Dados Identificadores</p>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 2, 2])
+        tipo = c1.selectbox("Tipo", ["Jurídica", "Física"])
+        doc = c2.text_input("CPF/CNPJ *")
+        razao = c3.text_input("Razão Social *")
         
         c4, c5, c6 = st.columns(3)
-        val = c4.number_input("Valor Mensal (R$)", min_value=0.0)
-        ini = c5.date_input("Início Vigência")
-        fim = c6.date_input("Fim Vigência")
+        fantasia = c4.text_input("Nome Fantasia")
+        ie = c5.text_input("Insc. Estadual")
+        im = c6.text_input("Insc. Municipal")
         
-        if st.form_submit_button("REGISTRAR CONTRATO"):
-            db.cursor.execute("INSERT INTO contratos (numero_contrato, processo_licitatorio, objeto, data_inicio, data_fim, valor_mensal, status_contrato) VALUES (?,?,?,?,?,?,?)",
-                             (num, proc, objeto, str(ini), str(fim), val, status))
+        st.markdown("<p class='section-title'>Endereço e Contato</p>", unsafe_allow_html=True)
+        c7, c8, c9 = st.columns([1, 3, 1])
+        cep = c7.text_input("CEP")
+        rua = c8.text_input("Logradouro")
+        num = c9.text_input("Nº")
+        
+        c10, c11, c12 = st.columns(3)
+        bairro = c10.text_input("Bairro")
+        cidade = c11.text_input("Cidade")
+        uf = c12.selectbox("UF", ["CE", "PI", "PE", "BA", "RN"])
+        
+        st.markdown("<p class='section-title'>Dados Bancários (Para Pagamento)</p>", unsafe_allow_html=True)
+        c13, c14, c15 = st.columns(3)
+        banco = c13.text_input("Banco")
+        ag = c14.text_input("Agência")
+        conta = c15.text_input("Conta Corrente")
+        
+        if st.form_submit_button("💾 SALVAR FORNECEDOR"):
+            db.cursor.execute("INSERT INTO fornecedores (tipo_pessoa, cpf_cnpj, razao_social, nome_fantasia, insc_estadual, insc_municipal, cep, logradouro, numero, bairro, cidade, uf, banco, agencia, conta) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                             (tipo, doc, razao, fantasia, ie, im, cep, rua, num, bairro, cidade, uf, banco, ag, conta))
             db.conn.commit()
-            st.success("Contrato jurídico registrado no sistema.")
+            st.success("Fornecedor registrado com sucesso!")
 
-elif modulo == "🚗 Gestão de Frota":
-    st.markdown("<div class='header-panel'><h2>🚗 Cadastro Técnico de Ativos</h2></div>", unsafe_allow_html=True)
-    with st.form("f_frota"):
-        c1, c2, c3 = st.columns([1,1,2])
-        vinc = c1.selectbox("Vínculo", ["Próprio", "Locado", "Cessão", "Doação"])
-        placa = c2.text_input("Placa *")
-        pat = c3.text_input("Nº Patrimônio (Se Próprio)")
-        
-        # Puxa Contratos Existentes
-        con_list = [c[0] for c in db.cursor.execute("SELECT numero_contrato FROM contratos").fetchall()]
-        cont_sel = st.selectbox("Vínculo Contratual (Se Locado)", ["Nenhum"] + con_list)
+# --- TELA: VEÍCULO (FICHA TÉCNICA LS) ---
+elif menu == "Cadastros" and sub == "Veículo":
+    st.markdown("<div class='main-header'><h3>🚗 Cadastro de Veículo</h3></div>", unsafe_allow_html=True)
+    
+    with st.form("f_veic"):
+        c1, c2, c3 = st.columns(3)
+        placa = c1.text_input("Placa (Mercosul/Antiga) *")
+        pat = c2.text_input("Nº Patrimônio")
+        vinculo = c3.selectbox("Vínculo", ["Próprio", "Locado", "Cessão"])
         
         c4, c5, c6, c7 = st.columns(4)
         ren = c4.text_input("RENAVAM")
@@ -130,76 +129,32 @@ elif modulo == "🚗 Gestão de Frota":
         modelo = c7.text_input("Modelo")
         
         c8, c9, c10 = st.columns(3)
-        sec = c8.selectbox("Secretaria Detentora", ["Saúde", "Educação", "Infraestrutura", "Gabinete"])
-        vipva = c9.date_input("Vencimento Licenciamento/IPVA")
-        vseg = c10.date_input("Vencimento Seguro")
+        ano_f = c8.text_input("Ano Fab.")
+        ano_m = c9.text_input("Ano Mod.")
+        comb = c10.selectbox("Combustível", ["Diesel S10", "Diesel S500", "Gasolina", "Etanol", "Flex"])
         
-        if st.form_submit_button("SALVAR VEÍCULO NO PATRIMÔNIO"):
-            db.cursor.execute("INSERT INTO frota (placa, patrimonio, tipo_vinculo, contrato_id, renavam, chassi, marca, modelo, secretaria, venc_ipva, venc_seguro, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                             (placa, pat, vinc, cont_sel, ren, cha, marca, modelo, sec, str(vipva), str(vseg), "Ativo"))
+        c11, c12 = st.columns(2)
+        sec = c11.selectbox("Secretaria Responsável", ["Educação", "Saúde", "Obras", "Agricultura"])
+        contrato = c12.text_input("Nº Contrato (Se Locado)")
+        
+        if st.form_submit_button("💾 SALVAR VEÍCULO"):
+            db.cursor.execute("INSERT INTO veiculos (placa, patrimonio, tipo_vinculo, renavam, chassi, marca, modelo, ano_fab, ano_mod, combustivel, num_contrato) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                             (placa, pat, vinculo, ren, cha, marca, modelo, ano_f, ano_m, comb, contrato))
             db.conn.commit()
-            st.success("Ativo registrado com ficha técnica completa.")
+            st.success("Veículo catalogado.")
 
-elif modulo == "⛽ Abastecimento":
-    st.markdown("<div class='header-panel'><h2>⛽ Movimentação de Combustíveis</h2></div>", unsafe_allow_html=True)
+# --- TELA: DASHBOARD ---
+elif menu == "Dashboard":
+    st.markdown("<div class='main-header'><h3>📊 Painel de Indicadores de Gestão</h3></div>", unsafe_allow_html=True)
     
-    # Carregamento de dados para dropdowns
-    placas = [p[0] for p in db.cursor.execute("SELECT placa FROM frota").fetchall()]
-    motos = [m[0] for m in db.cursor.execute("SELECT nome FROM motoristas").fetchall()]
+    # KPIs Rápidos
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Veículos Ativos", len(db.cursor.execute("SELECT id FROM veiculos").fetchall()))
+    c2.metric("Fornecedores", len(db.cursor.execute("SELECT id FROM fornecedores").fetchall()))
+    c3.metric("OS Pendentes", "0")
+    c4.metric("Consumo Combustível", "R$ 0,00")
     
-    with st.form("f_abast"):
-        c1, c2, c3 = st.columns(3)
-        p_sel = c1.selectbox("Veículo", placas if placas else ["Nenhum cadastrado"])
-        m_sel = c2.selectbox("Condutor", motos if motos else ["Nenhum cadastrado"])
-        data = c3.date_input("Data do Lançamento")
-        
-        c4, c5, c6 = st.columns(3)
-        km_ant = c4.number_input("Odômetro Anterior", help="Bloqueado: Automático do sistema")
-        km_atu = c5.number_input("Odômetro Atual (Hodômetro) *")
-        litros = c6.number_input("Qtd Litros *", step=0.01)
-        
-        c7, c8, c9 = st.columns(3)
-        preco = c7.number_input("Preço Unitário (R$)", step=0.001)
-        total = c8.number_input("Valor Total (R$)")
-        cupom = c9.text_input("Nº Cupom/Nota Fiscal")
-        
-        if st.form_submit_button("GRAVAR ABASTECIMENTO"):
-            db.cursor.execute("INSERT INTO abastecimentos (data, veiculo_id, motorista_id, km_ant, km_atu, litros, valor_unit, total, cupom) VALUES (?,?,?,?,?,?,?,?,?)",
-                             (str(data), p_sel, m_sel, km_ant, km_atu, litros, preco, total, cupom))
-            db.conn.commit()
-            st.success("Abastecimento processado com auditoria de KM.")
-
-elif modulo == "🛞 Controle de Pneus":
-    st.markdown("<div class='header-panel'><h2>🛞 Gestão de Pneus e Vidas</h2></div>", unsafe_allow_html=True)
-    st.info("O controle de pneus por número de fogo é essencial para evitar desvios no patrimônio.")
-    with st.form("f_pneu"):
-        c1, c2, c3 = st.columns(3)
-        fogo = c1.text_input("Número de Fogo (Marcação) *")
-        veic = c2.selectbox("Veículo Instalado", [p[0] for p in db.cursor.execute("SELECT placa FROM frota").fetchall()])
-        pos = c3.selectbox("Posição", ["Diant. Esq", "Diant. Dir", "Traseiro Int. Esq", "Traseiro Ext. Esq", "Estepre"])
-        
-        if st.form_submit_button("REGISTRAR INSTALAÇÃO DE PNEU"):
-            st.success(f"Pneu {fogo} vinculado ao veículo.")
-
-elif modulo == "👤 Condutores":
-    st.markdown("<div class='header-panel'><h2>👤 Cadastro de Condutores e CNH</h2></div>", unsafe_allow_html=True)
-    with st.form("f_moto"):
-        c1, c2, c3 = st.columns(3)
-        nome = c1.text_input("Nome Completo *")
-        cpf = c2.text_input("CPF *")
-        cnh = c3.text_input("Nº CNH")
-        
-        c4, c5, c6 = st.columns(3)
-        cat = c4.selectbox("Categoria", ["A", "B", "C", "D", "E", "AB", "AD", "AE"])
-        val = c5.date_input("Validade CNH")
-        sec = c6.selectbox("Secretaria", ["Saúde", "Educação", "Infraestrutura"])
-        
-        if st.form_submit_button("CADASTRAR MOTORISTA"):
-            db.cursor.execute("INSERT INTO motoristas (nome, cpf, cnh, categoria, validade_cnh, secretaria) VALUES (?,?,?,?,?,?)",
-                             (nome, cpf, cnh, cat, str(val), sec))
-            db.conn.commit()
-            st.success("Motorista habilitado no sistema.")
-
-# FOOTER AUDITÁVEL
-st.divider()
-st.caption("SIM v11.0 - Sistema de Informação Municipal | Salitre/CE | Integridade de Dados Padrão TCE-CE")
+    st.divider()
+    st.subheader("📋 Últimas Movimentações")
+    df_v = pd.read_sql("SELECT placa, marca, modelo, tipo_vinculo FROM veiculos ORDER BY id DESC LIMIT 10", db.conn)
+    st.table(df_v)
