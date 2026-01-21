@@ -1,20 +1,21 @@
 import streamlit as st
 import os
+import time
 
-# --- TENTA IMPORTAR A BIBLIOTECA DE DOWNLOAD ---
+# --- TENTA IMPORTAR A BIBLIOTECA ---
 try:
     import yt_dlp
     YDL_AVAILABLE = True
 except ImportError:
     YDL_AVAILABLE = False
 
-# --- CONFIGURAÇÃO E SESSÃO ---
-st.set_page_config(page_title="SIM - Downloader", layout="centered")
+# --- CONFIGURAÇÃO ---
+st.set_page_config(page_title="SIM - Downloader Pro", layout="centered")
 
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 
-# --- TELA DE LOGIN ---
+# --- LOGIN ---
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -35,43 +36,53 @@ else:
     st.write(f"Operador: **05772587374**")
     
     if not YDL_AVAILABLE:
-        st.error("⚠️ Erro: A biblioteca 'yt-dlp' não foi encontrada. Crie o arquivo 'requirements.txt' com o nome 'yt-dlp' dentro para funcionar.")
+        st.error("⚠️ Biblioteca yt-dlp não instalada no requirements.txt")
     else:
-        url = st.text_input("Cole o link do vídeo aqui:", placeholder="https://...")
+        url = st.text_input("Cole o link (YouTube, Shorts, Instagram):", placeholder="https://...")
 
         if url:
             if st.button("BAIXAR E ASSISTIR"):
-                with st.spinner("Processando... isso pode levar alguns segundos."):
+                # Limpa arquivos antigos para não dar conflito
+                if os.path.exists("temp_video.mp4"):
+                    os.remove("temp_video.mp4")
+
+                with st.spinner("Bypassing links... isso pode levar um momento."):
                     try:
-                        # Pasta temporária para o download
-                        save_path = "video_temp.mp4"
-                        
+                        # OPÇÕES AVANÇADAS PARA EVITAR ARQUIVO VAZIO
                         ydl_opts = {
-                            'format': 'best',
-                            'outtmpl': save_path,
+                            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                            'outtmpl': 'temp_video.mp4',
                             'noplaylist': True,
+                            'quiet': True,
+                            'no_warnings': True,
+                            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
                         }
                         
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([url])
-                        
-                        st.success("Vídeo pronto!")
-                        
-                        # Player de Vídeo
-                        st.video(save_path)
-                        
-                        # Botão de Download para o PC
-                        with open(save_path, "rb") as f:
-                            st.download_button(
-                                label="💾 Salvar no meu Computador",
-                                data=f,
-                                file_name="video_baixado.mp4",
-                                mime="video/mp4"
-                            )
+                            # Tenta extrair info primeiro
+                            info = ydl.extract_info(url, download=True)
+                            
+                        # Verifica se o arquivo foi realmente criado e tem conteúdo
+                        if os.path.exists("temp_video.mp4") and os.path.getsize("temp_video.mp4") > 0:
+                            st.success(f"Vídeo: {info.get('title', 'Sucesso')}")
+                            
+                            # Player
+                            st.video("temp_video.mp4")
+                            
+                            # Botão de Download
+                            with open("temp_video.mp4", "rb") as f:
+                                st.download_button(
+                                    label="💾 Salvar no Computador",
+                                    data=f,
+                                    file_name="video_sim_baixado.mp4",
+                                    mime="video/mp4"
+                                )
+                        else:
+                            st.error("O servidor do site bloqueou o download direto. Tente outro link ou vídeo mais curto.")
                             
                     except Exception as e:
-                        st.error(f"Erro ao baixar: {e}")
+                        st.error(f"Erro técnico: {str(e)}")
 
-    if st.sidebar.button("Logout"):
+    if st.sidebar.button("Sair"):
         st.session_state.logado = False
         st.rerun()
