@@ -1,85 +1,67 @@
 import streamlit as st
 import os
-import re
+import yt_dlp
 
-# --- TENTA IMPORTAR YT-DLP ---
-try:
-    import yt_dlp
-    YDL_AVAILABLE = True
-except ImportError:
-    YDL_AVAILABLE = False
-
-# --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="SIM - Ultra Downloader", layout="centered")
-
+# --- CONFIGURAÇÃO DE SESSÃO ---
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 
-# --- LOGIN ---
-if not st.session_state.logado:
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<br><br><h2 style='text-align:center;'>SIM LOGIN</h2>", unsafe_allow_html=True)
-        with st.form("login_sim"):
-            u = st.text_input("Usuário")
-            p = st.text_input("Senha", type="password")
-            if st.form_submit_button("ACESSAR"):
-                if u == "05772587374" and p == "1234":
-                    st.session_state.logado = True
-                    st.rerun()
-                else:
-                    st.error("Acesso negado")
-
 # --- INTERFACE ---
-else:
-    st.title("🎥 Ultra Downloader Pro")
-    st.info("Suporte para YouTube, Instagram, X, e outros sites de vídeo.")
-    
-    if not YDL_AVAILABLE:
-        st.error("Instale 'yt-dlp' no seu arquivo requirements.txt")
-    else:
-        url_raw = st.text_input("Cole o link do vídeo aqui:", placeholder="https://...")
-
-        if url_raw:
-            if st.button("PROCESSAR E BAIXAR"):
-                # 1. LIMPEZA DA URL (Remove lixo de rastreio)
-                url = url_raw.split('?')[0]
-                
-                if os.path.exists("video_result.mp4"):
-                    os.remove("video_result.mp4")
-
-                with st.spinner("Quebrando protocolos de segurança..."):
-                    try:
-                        ydl_opts = {
-                            # Tenta o melhor formato MP4 compatível
-                            'format': 'best[ext=mp4]/best', 
-                            'outtmpl': 'video_result.mp4',
-                            'noplaylist': True,
-                            # Opções para sites com bloqueio
-                            'check_formats': True,
-                            'ignoreerrors': False,
-                            'logtostderr': False,
-                            'quiet': True,
-                            'no_warnings': True,
-                            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-                        }
-                        
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([url])
-                        
-                        if os.path.exists("video_result.mp4") and os.path.getsize("video_result.mp4") > 0:
-                            st.success("Sucesso! O vídeo foi capturado.")
-                            st.video("video_result.mp4")
-                            
-                            with open("video_result.mp4", "rb") as f:
-                                st.download_button("💾 Salvar no Computador", f, "video_sim.mp4", "video/mp4")
-                        else:
-                            st.error("O site de origem bloqueou a extração ou a URL é inválida.")
-                        
-                    except Exception as e:
-                        st.error("Erro: Este site específico possui uma proteção que impede o download direto pelo servidor.")
-                        st.debug(str(e))
-
-    if st.sidebar.button("Logout"):
-        st.session_state.logado = False
+if not st.session_state.logado:
+    # (Mantenha seu código de login aqui)
+    st.title("Acesso Restrito")
+    u = st.text_input("Operador")
+    if st.button("Entrar") and u == "05772587374":
+        st.session_state.logado = True
         st.rerun()
+
+else:
+    st.title("🎥 Downloader Pro - Modo Bypass")
+    st.write("Operador: 05772587374")
+
+    # 1. ÁREA DE COOKIES (O segredo para não dar erro)
+    st.info("Passo 1: No seu navegador, use a extensão 'Get cookies.txt' no site do vídeo e suba o arquivo aqui.")
+    cookie_file = st.file_uploader("Upload cookies.txt", type=['txt'])
+    
+    # 2. ÁREA DO LINK
+    url = st.text_input("Passo 2: Cole o link do vídeo:")
+
+    if url and st.button("BAIXAR AGORA"):
+        cookie_path = "cookies_temp.txt"
+        video_path = "video_baixado.mp4"
+        
+        # Se você subiu os cookies, o sistema salva e usa eles
+        if cookie_file:
+            with open(cookie_path, "wb") as f:
+                f.write(cookie_file.getbuffer())
+
+        with st.spinner("Derrubando proteção do site..."):
+            try:
+                if os.path.exists(video_path): os.remove(video_path)
+
+                ydl_opts = {
+                    'format': 'best[ext=mp4]/best',
+                    'outtmpl': video_path,
+                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                }
+
+                # ATIVA OS COOKIES SE DISPONÍVEIS
+                if cookie_file:
+                    ydl_opts['cookiefile'] = cookie_path
+
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+
+                if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                    st.success("Vídeo capturado com sucesso!")
+                    st.video(video_path)
+                    with open(video_path, "rb") as f:
+                        st.download_button("💾 Salvar no PC", f, "video.mp4", "video/mp4")
+                else:
+                    st.error("O site bloqueou o servidor mesmo com os cookies.")
+
+            except Exception as e:
+                st.error(f"Falha técnica: {str(e)}")
+            
+            # Limpa os cookies após o uso por segurança
+            if os.path.exists(cookie_path): os.remove(cookie_path)
