@@ -4,25 +4,18 @@ import sqlite3
 import io
 import os
 
-# --- TESTE DE DEPENDÊNCIAS ---
-try:
-    import openpyxl
-    import xlsxwriter
-except ImportError:
-    st.error("🚨 ERRO CRÍTICO: Ferramentas de Excel não instaladas. Verifique o arquivo requirements.txt no seu GitHub.")
-
 # --- CONFIGURAÇÃO ---
-st.set_page_config(page_title="SISTEMA MARECHAL GOV", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="SISTEMA MARECHAL AI", page_icon="🛡️", layout="wide")
 
 db_path = 'sistema_marechal_nuvem.db'
 conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
 c = conn.cursor()
 
-# Inicialização de Variáveis de Sessão
+# Inicialização de Variáveis
 if 'logado' not in st.session_state: st.session_state.logado = False
 if 'pagina' not in st.session_state: st.session_state.pagina = "Home"
 
-# Criação de Tabelas
+# Tabelas
 c.execute('CREATE TABLE IF NOT EXISTS usuarios (nome TEXT PRIMARY KEY, senha TEXT, nivel TEXT, prefeitura TEXT)')
 c.execute('CREATE TABLE IF NOT EXISTS prefeituras (nome TEXT PRIMARY KEY)')
 c.execute("INSERT OR IGNORE INTO prefeituras (nome) VALUES ('Prefeitura Municipal de Salitre')")
@@ -35,14 +28,14 @@ def ir_para(p):
 
 # --- LOGIN ---
 if not st.session_state.logado:
-    st.title("🛡️ PORTAL DE GESTÃO MUNICIPAL")
+    st.title("🛡️ PORTAL MARECHAL - IA INTEGRADA")
     c.execute("SELECT nome FROM prefeituras")
     lista_pref = [p[0] for p in c.fetchall()]
     lista_pref.insert(0, "Gestão Central (ADM)")
     
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        pref_sel = st.selectbox("Selecione a jurisdição:", lista_pref)
+        pref_sel = st.selectbox("Jurisdição", lista_pref)
         u_in = st.text_input("Usuário").strip()
         s_in = st.text_input("Senha", type="password").strip()
         if st.button("🔓 ENTRAR"):
@@ -54,15 +47,15 @@ if not st.session_state.logado:
                 st.rerun()
             else: st.error("Acesso negado.")
 
-# --- SISTEMA ---
+# --- SISTEMA COM IA ---
 else:
     with st.sidebar:
-        st.title("🛡️ MENU")
+        st.title("🛡️ COMANDO AI")
         st.write(f"👤 **{st.session_state.usuario}**")
         st.write(f"🏢 **{st.session_state.pref_atual}**")
         st.divider()
         if st.button("🏠 Início"): ir_para("Home")
-        if st.button("📊 1. Gerar/Alterar Planilha"): ir_para("Gerar")
+        if st.button("🤖 1. IA de Planilhas"): ir_para("Gerar")
         if st.button("⛽ 2. Abastecimentos"): ir_para("Abast")
         if st.button("📈 4. Dashboard"): ir_para("Dash")
         
@@ -75,28 +68,61 @@ else:
             st.session_state.logado = False
             st.rerun()
 
-    # --- LÓGICA DE GERAR/ALTERAR PLANILHA ---
+    # --- MÓDULO DE IA DE PLANILHAS ---
     if st.session_state.pagina == "Gerar":
-        st.title("📊 Inteligência de Planilhas")
-        arquivo = st.file_uploader("Importar Planilha", type=["xlsx", "csv"])
+        st.title("🤖 Inteligência Artificial de Dados")
+        st.write("Suba sua planilha e dê ordens diretas para a IA processar.")
+        
+        arquivo = st.file_uploader("📂 Importar Arquivo", type=["xlsx", "csv"])
         
         if arquivo:
-            try:
-                df = pd.read_excel(arquivo) if arquivo.name.endswith('.xlsx') else pd.read_csv(arquivo)
-                st.success("Planilha lida!")
-                st.write("Colunas detectadas:", list(df.columns))
-                
-                col_sel = st.selectbox("Alterar qual coluna?", ["Nenhuma"] + list(df.columns))
-                if col_sel != "Nenhuma":
-                    novo_val = st.text_input(f"Novo valor para {col_sel}:")
-                    if st.button("Aplicar"):
-                        df[col_sel] = novo_val
-                        st.dataframe(df.head())
-                
-                # Botão de Exportar
+            df = pd.read_excel(arquivo) if arquivo.name.endswith('.xlsx') else pd.read_csv(arquivo)
+            st.success("✅ Planilha carregada e escaneada pela IA.")
+            
+            st.subheader("🧠 Comando à IA do Marechal")
+            comando = st.text_input("O que você quer que eu faça na planilha?", placeholder="Ex: Formate a coluna Data ou Calcule o total da coluna Valor...")
+            
+            if st.button("🚀 Executar Comando"):
+                with st.spinner("Processando dados com inteligência..."):
+                    try:
+                        # Lógica de processamento de comandos comuns (IA Heurística)
+                        if "maiúsculo" in comando.lower():
+                            df = df.applymap(lambda x: x.upper() if isinstance(x, str) else x)
+                            st.toast("Texto convertido para maiúsculo!")
+                        
+                        elif "limpar" in comando.lower():
+                            df = df.fillna(0)
+                            st.toast("Valores vazios limpos!")
+                        
+                        elif "data" in comando.lower():
+                            for col in df.columns:
+                                if "data" in col.lower():
+                                    df[col] = pd.to_datetime(df[col]).dt.strftime('%d/%m/%Y')
+                            st.toast("Datas formatadas!")
+
+                        st.session_state['df_ai'] = df
+                        st.write("### ✅ Resultado do Processamento")
+                        st.dataframe(df.head(10))
+                    except Exception as e:
+                        st.error(f"Erro no processamento da IA: {e}")
+
+            # Download do resultado da IA
+            if 'df_ai' in st.session_state:
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False)
-                st.download_button("📥 DOWNLOAD PLANILHA CORRIGIDA", output.getvalue(), "planilha_corrigida.xlsx")
-            except Exception as e:
-                st.error(f"Erro ao processar: {e}")
+                    st.session_state['df_ai'].to_excel(writer, index=False)
+                st.download_button("📥 BAIXAR PLANILHA PROCESSADA PELA IA", output.getvalue(), "ia_marechal_final.xlsx")
+
+    # (Home e Adm continuam as mesmas)
+    elif st.session_state.pagina == "Home":
+        st.title(f"Bem-vindo, Marechal.")
+        st.info("A IA está ativa no módulo 1. Pronta para processar planilhas de Salitre ou qualquer prefeitura.")
+    
+    elif st.session_state.pagina == "Adm_Pref":
+        st.title("🏛️ Controle de Prefeituras")
+        n = st.text_input("Nome da Prefeitura")
+        if st.button("Salvar"):
+            c.execute("INSERT OR IGNORE INTO prefeituras VALUES (?)", (n,))
+            conn.commit()
+            st.success("Adicionada!")
+            st.rerun()
