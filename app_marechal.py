@@ -1,153 +1,137 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import plotly.express as px
+import io
+from datetime import datetime
 
 # --- CONFIGURAÇÃO MASTER ---
-st.set_page_config(page_title="SIM - Frota Municipal", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="SIM - Gestão Pública Salitre", layout="wide")
 
-# --- BANCO DE DADOS ---
-db_path = 'sim_governo_v1.db'
+# --- BANCO DE DADOS (ESTRUTURA DE AUDITORIA) ---
+db_path = 'sim_tce_ceara.db'
 conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
-    c.execute('CREATE TABLE IF NOT EXISTS usuarios (cpf TEXT PRIMARY KEY, senha TEXT, nome TEXT)')
-    c.execute("INSERT OR IGNORE INTO usuarios VALUES ('05772587374', '1234', 'MARECHAL')")
-    # Tabelas de Gestão
-    c.execute('''CREATE TABLE IF NOT EXISTS veiculos (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                 placa TEXT, modelo TEXT, marca TEXT, secretaria TEXT, status TEXT)''')
+    # VEÍCULOS (Campos exigidos pelo TCE: Patrimônio, Chassi, Renavam, Tipo de Aquisição)
+    c.execute('''CREATE TABLE IF NOT EXISTS veiculos (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                 codigo_patrimonio TEXT, placa TEXT, renavam TEXT, chassi TEXT,
+                 descricao TEXT, marca TEXT, modelo TEXT, ano_fab TEXT, ano_mod TEXT,
+                 combustivel TEXT, secretaria TEXT, situacao TEXT,
+                 tipo_aquisicao TEXT, data_aquisicao TEXT, valor_aquisicao REAL)''')
+    
+    # ABASTECIMENTO (Controle de Cupom, KM Inicial/Final, Lotação)
+    c.execute('''CREATE TABLE IF NOT EXISTS abastecimentos (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 data TEXT, veiculo_id INTEGER, motorista_id INTEGER,
+                 km_anterior REAL, km_atual REAL, litros REAL, 
+                 valor_unitario REAL, valor_total REAL, posto TEXT, cupom_fiscal TEXT)''')
+    
+    # MOTORISTAS (Vínculo e CNH)
+    c.execute('''CREATE TABLE IF NOT EXISTS motoristas (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 nome TEXT, cpf TEXT, matricula TEXT, cnh_numero TEXT, 
+                 cnh_categoria TEXT, cnh_validade TEXT, vinculo TEXT)''')
+    
+    # USUÁRIO ADM
+    c.execute('CREATE TABLE IF NOT EXISTS usuarios (cpf TEXT PRIMARY KEY, senha TEXT)')
+    c.execute("INSERT OR IGNORE INTO usuarios VALUES ('05772587374', '1234')")
     conn.commit()
 
 init_db()
 
-# --- ESTILO VISUAL (PADRÃO ERP GOVERNAMENTAL) ---
-st.markdown("""
-    <style>
-    /* Fundo e Sidebar */
-    .stApp { background-color: #F0F2F5; }
-    [data-testid="stSidebar"] { background-color: #1E293B !important; color: white; }
-    
-    /* Cabeçalho do SIM */
-    .sim-header {
-        background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
-        padding: 15px;
-        color: white;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-left: 5px solid #10B981;
-    }
-    
-    /* Cards de Indicadores */
-    .metric-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        border-bottom: 4px solid #3B82F6;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- CONTROLE DE ACESSO ---
+# --- INTERFACE ---
 if 'logado' not in st.session_state: st.session_state.logado = False
-if 'menu_ativo' not in st.session_state: st.session_state.menu_ativo = "Dashboard"
+if 'pagina' not in st.session_state: st.session_state.pagina = "Dashboard"
 
-# --- TELA DE LOGIN ---
 if not st.session_state.logado:
-    col1, col2, col3 = st.columns([1.5, 1, 1.5])
-    with col2:
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align:center; color:#1E293B;'>SIM</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center;'>Sistema de Informação Municipal</p>", unsafe_allow_html=True)
-        with st.form("login"):
-            u = st.text_input("CPF", value="05772587374")
-            s = st.text_input("Senha", type="password", value="1234")
-            if st.form_submit_button("ACESSAR SISTEMA"):
+    st.markdown("<h1 style='text-align:center;'>SIM - TCE/CE</h1>", unsafe_allow_html=True)
+    with st.container():
+        _, col, _ = st.columns([1,1,1])
+        with col:
+            u = st.text_input("CPF")
+            s = st.text_input("Senha", type="password")
+            if st.button("ACESSAR"):
                 if u == "05772587374" and s == "1234":
                     st.session_state.logado = True
                     st.rerun()
-                else: st.error("Dados incorretos")
 
-# --- INTERFACE DO SISTEMA ---
 else:
-    # Cabeçalho Superior
-    st.markdown("""
-        <div class="sim-header">
-            <div>
-                <span style="font-size:20px; font-weight:bold;">🏛️ SIM - GESTÃO DE FROTA</span><br>
-                <span style="font-size:12px; opacity:0.8;">Prefeitura Municipal de Salitre - CE</span>
-            </div>
-            <div style="text-align:right;">
-                <span style="font-size:14px;">Usuário: <b>MARECHAL</b></span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    # Cabeçalho de Prestação de Contas
+    st.markdown("""<div style='background-color:#1E293B; padding:15px; color:white; border-bottom:5px solid #10B981;'>
+                <b>SIM - SISTEMA DE INFORMAÇÃO MUNICIPAL</b> | Prestação de Contas TCE-CE | Salitre-CE</div>""", unsafe_allow_html=True)
 
-    # Menu Lateral
     with st.sidebar:
-        st.markdown("<h2 style='color:white;'>Navegação</h2>", unsafe_allow_html=True)
-        if st.button("📊 Dashboard Geral"): st.session_state.menu_ativo = "Dashboard"
-        if st.button("🚗 Cadastro de Veículos"): st.session_state.menu_ativo = "Veiculos"
-        if st.button("⛽ Abastecimento"): st.session_state.menu_ativo = "Abast"
-        if st.button("🛠️ Manutenções"): st.session_state.menu_ativo = "Manut"
-        if st.button("👥 Motoristas"): st.session_state.menu_ativo = "Moto"
+        st.title("Módulos TCE")
+        if st.button("📊 Painel de Controle (SAG)") : st.session_state.pagina = "Dashboard"
+        if st.button("🚗 Cadastro de Frota"): st.session_state.pagina = "Frota"
+        if st.button("⛽ Controle de Abastecimento"): st.session_state.pagina = "Abastecimento"
+        if st.button("👥 Cadastro de Condutores"): st.session_state.pagina = "Condutores"
+        if st.button("🛠️ Manutenções e OS"): st.session_state.pagina = "Manut"
         st.divider()
         if st.button("🚪 Sair"):
             st.session_state.logado = False
             st.rerun()
 
-    # --- LÓGICA DAS PÁGINAS ---
-    if st.session_state.menu_ativo == "Dashboard":
-        # Indicadores no topo
-        c1, c2, c3, c4 = st.columns(4)
-        with c1: st.markdown('<div class="metric-card">Total Veículos<br><h2>42</h2></div>', unsafe_allow_html=True)
-        with c2: st.markdown('<div class="metric-card">Em Uso<br><h2 style="color:green;">38</h2></div>', unsafe_allow_html=True)
-        with c3: st.markdown('<div class="metric-card">Manutenção<br><h2 style="color:red;">4</h2></div>', unsafe_allow_html=True)
-        with c4: st.markdown('<div class="metric-card">Consumo Mês<br><h2>R$ 15k</h2></div>', unsafe_allow_html=True)
+    # --- PÁGINA: CADASTRO DE FROTA (COMPLETO) ---
+    if st.session_state.pagina == "Frota":
+        st.header("📦 Gestão de Patrimônio e Frota")
+        with st.form("cad_veic_tce"):
+            c1, c2, c3 = st.columns([1, 2, 2])
+            patrimonio = c1.text_input("Nº Patrimônio (TCE)")
+            placa = c2.text_input("Placa (Mercosul)")
+            descricao = c3.text_input("Descrição (Ex: Caminhão Pipa)")
+            
+            c4, c5, c6 = st.columns(3)
+            renavam = c4.text_input("RENAVAM")
+            chassi = c5.text_input("CHASSI")
+            situacao = c6.selectbox("Situação Atual", ["Ativo", "Baixado", "Leilão", "Manutenção"])
+            
+            c7, c8, c9 = st.columns(3)
+            secretaria = c7.selectbox("Secretaria Vinculada", ["Saúde", "Educação", "Infraestrutura", "Assistência Social", "Gabinete"])
+            tipo_aq = c8.selectbox("Tipo de Aquisição", ["Próprio", "Locado", "Cessão", "Doação"])
+            valor_aq = c9.number_input("Valor de Aquisição (R$)", min_value=0.0)
+            
+            if st.form_submit_button("✅ Salvar no Sistema"):
+                c.execute("INSERT INTO veiculos (codigo_patrimonio, placa, renavam, chassi, descricao, situacao, secretaria, tipo_aquisicao, valor_aquisicao) VALUES (?,?,?,?,?,?,?,?,?)",
+                          (patrimonio, placa, renavam, chassi, descricao, situacao, secretaria, tipo_aq, valor_aq))
+                conn.commit()
+                st.success("Veículo registrado para auditoria!")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Gráficos
-        g1, g2 = st.columns(2)
-        with g1:
-            st.write("### ⛽ Consumo por Secretaria")
-            fig = px.pie(values=[40, 25, 20, 15], names=['Saúde', 'Educação', 'Obras', 'Gabinete'])
-            st.plotly_chart(fig, use_container_width=True)
-        with g2:
-            st.write("### 📈 Gastos nos últimos 6 meses")
-            fig2 = px.line(x=["Ago", "Set", "Out", "Nov", "Dez", "Jan"], y=[12, 15, 14, 18, 22, 15])
-            st.plotly_chart(fig2, use_container_width=True)
+    # --- PÁGINA: ABASTECIMENTO (COMPLETO PARA AUDITORIA) ---
+    elif st.session_state.pagina == "Abastecimento":
+        st.header("⛽ Lançamento de Abastecimento (SIM/TCE)")
+        with st.form("form_abast"):
+            c1, c2 = st.columns(2)
+            # Busca veículos do banco
+            df_v = pd.read_sql("SELECT id, placa, descricao FROM veiculos", conn)
+            veiculo_sel = c1.selectbox("Veículo", df_v['placa'] + " - " + df_v['descricao'])
+            motorista = c2.text_input("Motorista (Matrícula/Nome)")
+            
+            c3, c4, c5 = st.columns(3)
+            km_ant = c3.number_input("KM Anterior", value=0.0)
+            km_atual = c4.number_input("KM Atual (No ato do abast.)")
+            litros = c5.number_input("Quantidade (Litros)", value=0.0)
+            
+            c6, c7, c8 = st.columns(3)
+            preco = c6.number_input("Preço Unitário (R$)", value=0.0)
+            fiscal = c7.text_input("Nº Cupom/Nota Fiscal")
+            posto = c8.text_input("Posto Credenciado")
+            
+            if st.form_submit_button("🚀 Finalizar Lançamento"):
+                val_total = litros * preco
+                c.execute("INSERT INTO abastecimentos (veiculo_id, km_anterior, km_atual, litros, valor_unitario, valor_total, cupom_fiscal, posto) VALUES (?,?,?,?,?,?,?,?)",
+                          (veiculo_sel, km_ant, km_atual, litros, preco, val_total, fiscal, posto))
+                conn.commit()
+                st.success("Abastecimento auditado e salvo!")
 
-    elif st.session_state.menu_ativo == "Veiculos":
-        st.subheader("🚗 Cadastro e Gerenciamento de Veículos")
-        with st.expander("➕ Adicionar Novo Veículo"):
-            with st.form("cad_veiculo"):
-                v1, v2, v3 = st.columns(3)
-                placa = v1.text_input("Placa")
-                marca = v2.text_input("Marca")
-                modelo = v3.text_input("Modelo")
-                v4, v5 = st.columns(2)
-                secretaria = v4.selectbox("Secretaria", ["Saúde", "Educação", "Infraestrutura", "Gabinete"])
-                tipo = v5.selectbox("Tipo", ["Próprio", "Locado"])
-                if st.form_submit_button("Salvar Veículo"):
-                    st.success("Veículo registrado no SIM!")
-
-        st.write("### Frota Ativa")
-        # Exemplo de tabela de sistema profissional
-        df_exemplo = pd.DataFrame({
-            'Placa': ['OSC-1234', 'HTX-9090', 'PMA-0011'],
-            'Modelo': ['L200 Triton', 'Fiat Uno', 'Ônibus Escolar'],
-            'Secretaria': ['Saúde', 'Obras', 'Educação'],
-            'Status': ['Disponível', 'Em Rota', 'Manutenção']
-        })
-        st.table(df_exemplo)
-
-    elif st.session_state.menu_ativo == "Abast":
-        st.subheader("⛽ Controle de Abastecimento")
-        st.info("Módulo de integração com postos credenciados.")
-        st.date_input("Filtrar por data")
-        st.button("Gerar Relatório de Consumo (PDF)")
+    # --- RELATÓRIOS ---
+    st.divider()
+    st.subheader("📋 Registros Atuais")
+    if st.session_state.pagina == "Frota":
+        df_show = pd.read_sql("SELECT * FROM veiculos", conn)
+        st.dataframe(df_show, use_container_width=True)
+    elif st.session_state.pagina == "Abastecimento":
+        df_show = pd.read_sql("SELECT * FROM abastecimentos", conn)
+        st.dataframe(df_show, use_container_width=True)
