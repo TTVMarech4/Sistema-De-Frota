@@ -1,60 +1,79 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 
-# --- CONFIGURAÇÃO DA VITRINE ---
-st.set_page_config(page_title="CUCK-HUB ELITE", layout="wide")
+# --- CONFIGURAÇÃO DA CENTRAL ---
+st.set_page_config(page_title="FitAI - Coach Digital", layout="wide", page_icon="💪")
 
-# Banco de Dados de Vídeos (Simulado para os seus 100 vídeos)
-if 'acervo' not in st.session_state:
-    st.session_state.acervo = [
-        {"id": 1, "titulo": "Cuckold Realidade: O Encontro", "views": "15k", "likes": 450, "url": "link_do_video_1"},
-        {"id": 2, "titulo": "Esposa VIP: Relato Amador", "views": "8k", "likes": 120, "url": "link_do_video_2"},
-        # A lista cresce conforme você adiciona
-    ]
+# Inicialização do Banco de Dados de Evolução
+if 'historico' not in st.session_state:
+    st.session_state.historico = []
 
-# --- INTERFACE ESTILO GRADE (GRID) ---
-st.title("🔞 ACERVO VIP: OS MAIS VISTOS")
-st.write("---")
-
-# Filtros de Busca
-col_f1, col_f2 = st.columns([2, 1])
-with col_f1:
-    busca = st.text_input("🔍 Pesquisar no acervo de 100 vídeos...", placeholder="Ex: Amador, Realidade...")
-
-# Exibição dos Vídeos
-cols = st.columns(3) # 3 vídeos por linha para parecer o XV
-
-for i, video in enumerate(st.session_state.acervo):
-    with cols[i % 3]:
-        with st.container(border=True):
-            # Placeholder da Thumbnail (Capa)
-            st.image("https://placehold.co/600x400/333/FFF?text=CUCKOLD+VIDEO", use_container_width=True)
-            
-            st.subheader(video["titulo"])
-            
-            c1, c2 = st.columns(2)
-            c1.caption(f"👁️ {video['views']}")
-            c2.caption(f"👍 {video['likes']} Likes")
-            
-            if st.button(f"▶️ ASSISTIR AGORA", key=f"play_{video['id']}", use_container_width=True):
-                st.session_state.video_ativo = video
-                st.rerun()
-
-# --- PLAYER EXPANSÍVEL (QUANDO CLICA EM ASSISTIR) ---
-if 'video_ativo' in st.session_state:
-    st.divider()
-    st.header(f"📺 Reproduzindo: {st.session_state.video_ativo['titulo']}")
+# --- SIDEBAR: PERFIL DO USUÁRIO ---
+with st.sidebar:
+    st.header("👤 Perfil Físico")
+    nome = st.text_input("Nome Completo", "Marechal")
+    peso = st.number_input("Peso Atual (kg)", min_value=30.0, max_value=250.0, value=80.0)
+    altura = st.number_input("Altura (m)", min_value=1.0, max_value=2.5, value=1.75)
+    idade = st.number_input("Idade", min_value=12, max_value=100, value=25)
+    objetivo = st.selectbox("Objetivo", ["Perda de Gordura", "Ganho de Massa (Bulking)", "Manutenção / Definição"])
     
-    col_play, col_chat = st.columns([2, 1])
-    
-    with col_play:
-        # Aqui entra o seu vídeo baixado ou o link direto
-        st.video("https://www.w3schools.com/html/mov_bbb.mp4") 
-        
-        if st.button("❌ Fechar Player"):
-            del st.session_state.video_ativo
-            st.rerun()
+    # Cálculo automático de IMC
+    imc = peso / (altura ** 2)
+    st.metric("Seu IMC", f"{imc:.2f}")
 
-    with col_chat:
-        st.write("💬 **Comentários da Comunidade**")
-        st.text_area("Deixe seu relato...", height=100)
-        st.button("Publicar Comentário")
+# --- CORPO PRINCIPAL ---
+st.title(f"🚀 Bem-vindo ao FitAI, {nome}!")
+
+tabs = st.tabs(["📋 Minha Dieta", "🏋️ Meu Treino", "📈 Evolução", "🤖 Falar com IA Coach"])
+
+# --- ABA 1: DIETA GERADA ---
+with tabs[0]:
+    st.subheader("🍎 Plano Alimentar Inteligente")
+    if st.button("Gerar Nova Dieta com IA"):
+        with st.spinner("IA calculando macros..."):
+            # Aqui simulamos a resposta da IA baseada nos dados do sidebar
+            st.success("Dieta Gerada!")
+            st.markdown(f"""
+            ### Sugestão para {objetivo}:
+            * **Café da Manhã:** 3 ovos mexidos + 1 fruta.
+            * **Almoço:** 150g de proteína + 200g de carboidrato limpo + salada.
+            * **Jantar:** Proteína leve + legumes à vontade.
+            """)
+
+# --- ABA 2: TREINO ---
+with tabs[1]:
+    st.subheader("💪 Ficha de Treino Personalizada")
+    nivel = st.select_slider("Nível de Experiência", options=["Iniciante", "Intermediário", "Avançado"])
+    frequencia = st.slider("Dias por semana", 1, 7, 5)
+    
+    if st.button("Montar Cronograma"):
+        st.info(f"Gerando treino {nivel} para {frequencia} dias na semana...")
+        # Exemplo de tabela de treino
+        df_treino = pd.DataFrame({
+            "Exercício": ["Supino Reto", "Agachamento", "Puxada Alta", "Rosca Direta"],
+            "Séries": [4, 4, 3, 3],
+            "Repetições": ["10-12", "8-10", "12", "15"]
+        })
+        st.table(df_treino)
+
+# --- ABA 3: EVOLUÇÃO ---
+with tabs[2]:
+    st.subheader("📊 Acompanhamento de Resultados")
+    col1, col2 = st.columns(2)
+    with col1:
+        nova_medida = st.number_input("Registrar novo peso hoje:", value=peso)
+        if st.button("Salvar Medida"):
+            st.session_state.historico.append({"Data": datetime.now().strftime("%d/%m/%y"), "Peso": nova_medida})
+    
+    if st.session_state.historico:
+        df_hist = pd.DataFrame(st.session_state.historico)
+        st.line_chart(df_hist.set_index("Data"))
+
+# --- ABA 4: IA COACH (CHATBOT) ---
+with tabs[3]:
+    st.subheader("💬 Converse com seu Treinador IA")
+    msg = st.chat_input("Ex: Posso trocar o arroz por batata doce?")
+    if msg:
+        st.chat_message("user").write(msg)
+        st.chat_message("assistant").write(f"Como seu Coach, vejo que seu objetivo é {objetivo}. Sim, você pode trocar, desde que mantenha a mesma proporção de carboidratos...")
