@@ -1,89 +1,100 @@
 import streamlit as st
 import os
+from datetime import datetime
 
 # --- 1. CONFIGURAÇÃO DA CENTRAL ---
-st.set_page_config(page_title="PORTAL VIP", layout="wide")
+st.set_page_config(page_title="CUCKOLD SOCIAL - VIP", layout="wide")
 
-# Criar pasta de acervo se não existir para evitar erros de diretório
-LIBRARY_DIR = "acervo_vids"
-if not os.path.exists(LIBRARY_DIR):
-    os.makedirs(LIBRARY_DIR)
+# Inicialização do Banco de Dados Virtual (Simulado)
+if 'db_social' not in st.session_state:
+    st.session_state.db_social = {
+        "videos": {
+            "Video_Exemplo_1.mp4": {"likes": 150, "views": 1200, "comments": []},
+        },
+        "perfis": {
+            "05772587374": {"nome": "Marechal", "bio": "Administrador Geral", "posts": 0}
+        }
+    }
 
-# --- 2. SISTEMA DE SEGURANÇA (LOGIN) ---
-if 'auth' not in st.session_state:
-    st.session_state.auth = False
+# --- 2. SISTEMA DE SEGURANÇA ---
+if 'auth' not in st.session_state: st.session_state.auth = False
 
 def login():
-    # Corrigido: unsafe_allow_html=True
-    st.markdown("<h1 style='text-align: center;'>🔐 ACESSO RESTRITO</h1>", unsafe_allow_html=True)
-    
+    st.markdown("<h1 style='text-align: center;'>🔞 ACESSO CUCKOLD SOCIAL</h1>", unsafe_allow_html=True)
     with st.container():
         col1, col2, col3 = st.columns([1,1.5,1])
         with col2:
-            st.write("---")
-            u = st.text_input("Operador", placeholder="Digite seu CPF ou Usuário")
-            p = st.text_input("Senha de Comando", type="password")
-            if st.button("DESBLOQUEAR PORTAL", use_container_width=True):
-                # Suas credenciais mantidas
+            u = st.text_input("Usuário")
+            p = st.text_input("Senha", type="password")
+            if st.button("ENTRAR NA REDE", use_container_width=True):
                 if u == "05772587374" and p == "1234":
                     st.session_state.auth = True
                     st.rerun()
-                else:
-                    st.error("Credenciais Inválidas. Acesso negado.")
 
-# --- 3. O SITE COMPLETO (SÓ APARECE APÓS LOGIN) ---
+# --- 3. INTERFACE SOCIAL (ESTILO XV) ---
 if not st.session_state.auth:
     login()
 else:
-    # Cabeçalho do Site
-    st.title("🔥 PORTAL CUCKOLD VIP")
-    st.sidebar.write(f"Sessão Ativa: **Operador 05772587374**")
-    
-    # Menu lateral para navegação do site
-    menu = st.sidebar.radio("Navegação", ["📺 Galeria de Vídeos", "📤 Adicionar Conteúdo", "⚙️ Painel Admin"])
+    # --- BARRA SUPERIOR (ESTILO SITE ADULTO) ---
+    col_logo, col_search, col_perfil = st.columns([1, 2, 1])
+    with col_logo:
+        st.subheader("🔥 CUCK-HUB")
+    with col_search:
+        st.text_input("", placeholder="Pesquisar vídeos, categorias ou perfis...", label_visibility="collapsed")
+    with col_perfil:
+        if st.button(f"👤 Perfil: {st.session_state.db_social['perfis']['05772587374']['nome']}"):
+            st.toast("Acessando suas configurações de perfil...")
 
-    # ABA 1: GALERIA (O CORAÇÃO DO SITE)
-    if menu == "📺 Galeria de Vídeos":
-        st.subheader("🎬 Acervo de Filmes")
-        videos = [f for f in os.listdir(LIBRARY_DIR) if f.endswith(('.mp4', '.mkv', '.mov'))]
+    st.write("---")
+
+    # --- MENU LATERAL ---
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
+        st.write(f"**@Marechal**")
+        menu = st.radio("MENU", ["📺 Home (Mais Vistos)", "⭐ Favoritos", "👥 Comunidade", "📤 Subir Vídeo"])
+
+    # --- CONTEÚDO PRINCIPAL ---
+    if menu == "📺 Home (Mais Vistos)":
+        st.title("📹 Vídeos Mais Vistos de Cuckold")
         
-        if not videos:
-            st.warning("Nenhum vídeo no acervo. Vá em 'Adicionar Conteúdo'.")
-        else:
-            # Grade de exibição
-            cols = st.columns(2) # 2 vídeos por linha para dar destaque
-            for i, vid in enumerate(videos):
-                with cols[i % 2]:
-                    with st.container(border=True):
-                        st.write(f"**🎞️ {vid}**")
-                        st.video(os.path.join(LIBRARY_DIR, vid))
-                        if st.button(f"Excluir", key=f"del_{vid}"):
-                            os.remove(os.path.join(LIBRARY_DIR, vid))
-                            st.rerun()
-
-    # ABA 2: ADICIONAR CONTEÚDO
-    elif menu == "📤 Adicionar Conteúdo":
-        st.subheader("Importar Novo Material")
+        # Simulando lista de vídeos (Aqui entrariam os que você baixou)
+        vids = list(st.session_state.db_social["videos"].keys())
         
-        # Upload manual
-        up_file = st.file_uploader("Subir vídeo do dispositivo", type=['mp4', 'mov'])
-        if up_file:
-            with open(os.path.join(LIBRARY_DIR, up_file.name), "wb") as f:
-                f.write(up_file.getbuffer())
-            st.success("Vídeo adicionado com sucesso!")
-            
-        st.write("---")
-        st.info("💡 Para adicionar vídeos de sites externos, use o seu Robô CMD e depois faça o upload aqui.")
+        for v in vids:
+            with st.container(border=True):
+                col_vid, col_info = st.columns([2, 1])
+                
+                with col_vid:
+                    # Botão de Reprodução incorporado no st.video
+                    st.video("https://www.w3schools.com/html/mov_bbb.mp4") # Exemplo: Substituir pelo caminho local
+                
+                with col_info:
+                    st.subheader(v.replace("_", " "))
+                    st.write(f"👁️ {st.session_state.db_social['videos'][v]['views']} visualizações")
+                    
+                    # Sistema de Likes
+                    if st.button(f"👍 Like ({st.session_state.db_social['videos'][v]['likes']})", key=f"like_{v}"):
+                        st.session_state.db_social['videos'][v]['likes'] += 1
+                        st.rerun()
+                    
+                    st.write("---")
+                    st.write("**Comentários:**")
+                    for comm in st.session_state.db_social['videos'][v]['comments']:
+                        st.caption(f"💬 {comm}")
+                    
+                    new_comm = st.text_input("Adicionar comentário...", key=f"input_{v}")
+                    if st.button("Enviar", key=f"btn_{v}"):
+                        st.session_state.db_social['videos'][v]['comments'].append(new_comm)
+                        st.rerun()
 
-    # ABA 3: ADMINISTRAÇÃO
-    elif menu == "⚙️ Painel Admin":
-        st.subheader("Configurações do Servidor")
-        if st.button("🗑️ LIMPAR TODO O ACERVO"):
-            for f in os.listdir(LIBRARY_DIR):
-                os.remove(os.path.join(LIBRARY_DIR, f))
-            st.success("Acervo resetado.")
-            st.rerun()
-
-    if st.sidebar.button("Sair (Logout)"):
-        st.session_state.auth = False
-        st.rerun()
+    elif menu == "📤 Subir Vídeo":
+        st.subheader("📤 Central de Upload")
+        with st.form("upload_form"):
+            titulo = st.text_input("Título do Vídeo")
+            tags = st.multiselect("Categorias", ["Amador", "Realidade", "Relato", "Esposa VIP"])
+            arquivo = st.file_uploader("Escolha o arquivo MP4", type=["mp4"])
+            if st.form_submit_button("PUBLICAR NO SITE"):
+                if arquivo and titulo:
+                    # Lógica para salvar e adicionar ao banco virtual
+                    st.session_state.db_social["videos"][f"{titulo}.mp4"] = {"likes": 0, "views": 0, "comments": []}
+                    st.success("Vídeo publicado com sucesso na rede!")
