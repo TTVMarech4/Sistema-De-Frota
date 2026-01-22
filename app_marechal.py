@@ -1,63 +1,77 @@
 import streamlit as st
 import os
-import yt_dlp
 
-# --- LOGIN ---
-if 'logado' not in st.session_state:
-    st.session_state.logado = False
+# --- 1. CONFIGURAÇÃO DA CENTRAL ---
+st.set_page_config(page_title="PORTAL CUCKOLD - VIP", layout="wide", initial_sidebar_state="collapsed")
 
-if not st.session_state.logado:
-    st.title("🛡️ ACESSO RESTRITO")
-    u = st.text_input("USUÁRIO")
-    if st.button("ENTRAR") and u == "05772587374":
-        st.session_state.logado = True
-        st.rerun()
-else:
-    st.title("🤖 AI BRUTE FORCE EXTRACTOR")
-    st.warning("MODO AGRESSIVO: Forçando extração de URL não suportada.")
+# Criar pasta de acervo se não existir
+LIBRARY_DIR = "acervo_vids"
+if not os.path.exists(LIBRARY_DIR):
+    os.makedirs(LIBRARY_DIR)
 
-    cookie_raw = st.text_area("Injeção de Cookie (Opcional):", placeholder="Cole o cookie aqui...")
-    url_raw = st.text_input("URL do Vídeo:")
+# --- 2. SISTEMA DE SEGURANÇA (LOGIN) ---
+if 'auth' not in st.session_state:
+    st.session_state.auth = False
 
-    if st.button("FORÇAR QUEBRA DE PROTOCOLO"):
-        # IA de Limpeza: Remove o lixo do final da URL que causa o erro
-        url = url_raw.split('?')[0]
-        
-        video_out = "force_capture.mp4"
-        if os.path.exists(video_out): os.remove(video_out)
-
-        with st.spinner("🤖 IA simulando navegador e capturando tráfego bruto..."):
-            try:
-                ydl_opts = {
-                    'format': 'best',
-                    'outtmpl': video_out,
-                    # O SEGREDO: Força o yt-dlp a tratar como link genérico
-                    'force_generic_extractor': True, 
-                    'nocheckcertificate': True,
-                    'ignoreerrors': True,
-                    'quiet': False,
-                    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                }
-
-                if cookie_raw:
-                    ydl_opts['http_headers'] = {'Cookie': cookie_raw}
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    # Tenta extrair e baixar na marra
-                    ydl.download([url])
-
-                if os.path.exists(video_out) and os.path.getsize(video_out) > 0:
-                    st.success("✅ IA EXTRAIU O VÍDEO BRUTO!")
-                    st.video(video_out)
-                    with open(video_out, "rb") as f:
-                        st.download_button("💾 SALVAR AGORA", f, "video_raw.mp4", "video/mp4")
+def login():
+    st.markdown("<h1 style='text-align: center;'>🔐 ACESSO RESTRITO</h1>", unsafe_allow_stdio=True)
+    with st.container():
+        col1, col2, col3 = st.columns([1,2,1])
+        with col2:
+            u = st.text_input("Operador", placeholder="Digite seu CPF ou Usuário")
+            p = st.text_input("Senha de Comando", type="password")
+            if st.button("DESBLOQUEAR PORTAL", use_container_width=True):
+                if u == "05772587374" and p == "1234": # Configure sua senha aqui
+                    st.session_state.auth = True
+                    st.rerun()
                 else:
-                    st.error("❌ Erro: O site usa criptografia de fragmentos (HLS/Dash) que o servidor não consegue unir sem o FFmpeg.")
-                    st.info("💡 Marechal, o servidor do Streamlit é limitado. Para esses links pesados, você deve rodar no seu PC.")
+                    st.error("Credenciais Inválidas.")
 
-            except Exception as e:
-                st.error(f"Falha Crítica: {str(e)}")
+# --- 3. O SITE COMPLETO ---
+if not st.session_state.auth:
+    login()
+else:
+    # Cabeçalho do Site
+    st.title("🔥 PORTAL CUCKOLD VIP")
+    st.write(f"Bem-vindo, Operador **05772587374**")
+    
+    tabs = st.tabs(["📺 Galeria de Vídeos", "📥 Upload/Captura", "⚙️ Configurações"])
 
-    if st.sidebar.button("LOGOUT"):
-        st.session_state.logado = False
-        st.rerun()
+    # ABA 1: O SITE (VISÃO DO USUÁRIO)
+    with tabs[0]:
+        st.subheader("Filmes Recentes")
+        videos = [f for f in os.listdir(LIBRARY_DIR) if f.endswith(('.mp4', '.mkv', '.mov'))]
+        
+        if not videos:
+            st.info("O acervo está vazio. Use a aba de Captura para adicionar vídeos.")
+        else:
+            # Cria uma grade de vídeos (3 por linha)
+            cols = st.columns(3)
+            for i, vid in enumerate(videos):
+                with cols[i % 3]:
+                    st.write(f"**{vid.replace('.mp4', '')}**")
+                    st.video(os.path.join(LIBRARY_DIR, vid))
+                    st.button(f"Remover {i}", key=f"del_{i}", help="Deletar vídeo")
+
+    # ABA 2: FERRAMENTA DE ABASTECIMENTO
+    with tabs[1]:
+        st.subheader("Capturar Novo Conteúdo")
+        # Aqui você pode integrar o código de download anterior
+        st.info("Integre aqui o seu robô V36 para baixar direto para a pasta 'acervo_vids'")
+        
+        uploaded_file = st.file_uploader("Ou suba um vídeo do seu PC:", type=['mp4'])
+        if uploaded_file is not None:
+            with open(os.path.join(LIBRARY_DIR, uploaded_file.name), "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            st.success("Vídeo adicionado ao acervo!")
+
+    # ABA 3: ADMINISTRAÇÃO
+    with tabs[2]:
+        if st.button("LIMPAR TODO O SITE"):
+            for f in os.listdir(LIBRARY_DIR):
+                os.remove(os.path.join(LIBRARY_DIR, f))
+            st.rerun()
+        
+        if st.sidebar.button("LOGOUT"):
+            st.session_state.auth = False
+            st.rerun()
